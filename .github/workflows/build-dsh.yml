@@ -47,9 +47,15 @@ jobs:
         npm install -g pnpm
         pnpm install --frozen-lockfile
 
+    - name: Install Android-native build tools
+      run: |
+        npm install --no-save --force --no-package-lock @esbuild/android-arm64@0.28.1 || true
+        npm install --no-save --force --no-package-lock @rolldown/binding-android-arm64 || true
+
     - name: Build DSH
       run: |
         pnpm run build:lib:host
+        pnpm run build:lib:client
         pnpm run build:native-system
 
     - name: Package Artifact
@@ -61,14 +67,15 @@ jobs:
         ls -la dist 2>/dev/null || echo "NO dist/"
         echo "=== Копируем ==="
         cp package.json dist-artifact/
+        cp tsconfig.base.json dist-artifact/ 2>/dev/null || true
         cp pnpm-workspace.yaml dist-artifact/ 2>/dev/null || true
         cp -r dist dist-artifact/ 2>/dev/null || true
         cp -r bin dist-artifact/ 2>/dev/null || true
-        cp -r packages dist-artifact/ 2>/dev/null || true
+        cp -a packages dist-artifact/
         cp -r apps dist-artifact/ 2>/dev/null || true
         cp -r native dist-artifact/ 2>/dev/null || true
         cp -r vendor dist-artifact/ 2>/dev/null || true
-        cp -r node_modules dist-artifact/ 2>/dev/null || true
+        cp -a node_modules dist-artifact/
         echo "=== Что в dist-artifact ==="
         ls -la dist-artifact/
         tar -czvf dsh-android-arm64.tar.gz dist-artifact/
