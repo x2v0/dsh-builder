@@ -67,6 +67,7 @@ jobs:
         cp -r packages dist-artifact/ 2>/dev/null || true
         cp -r apps dist-artifact/ 2>/dev/null || true
         cp -r native dist-artifact/ 2>/dev/null || true
+        cp -r vendor dist-artifact/ 2>/dev/null || true
         cp -r node_modules dist-artifact/ 2>/dev/null || true
         echo "=== Что в dist-artifact ==="
         ls -la dist-artifact/
