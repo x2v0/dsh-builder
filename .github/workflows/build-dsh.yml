@@ -51,7 +51,7 @@ jobs:
       run: |
         echo "[*] Скачиваем esbuild для Android"
         python3 - << 'INNEREOF'
-        import os, urllib.request, tarfile, shutil, subprocess
+          import os, urllib.request, tarfile, shutil
         ver = '0.28.1'
         url = f'https://registry.npmjs.org/@esbuild/android-arm64/-/android-arm64-{ver}.tgz'
         tgz = 'esbuild-android.tgz'
@@ -62,8 +62,7 @@ jobs:
         with tarfile.open(tgz, 'r:gz') as tar: tar.extractall(path=dest)
         bin_path = os.path.join(dest, 'package', 'bin', 'esbuild')
         os.chmod(bin_path, 0o755)
-        print(f'[+] esbuild: {bin_path}')
-        subprocess.run([bin_path, '--version'])
+          print(f'[+] esbuild: {bin_path} (не запускаем на Linux)')
         INNEREOF
         npm install --no-save --force --no-package-lock @rolldown/binding-android-arm64 || true
 
