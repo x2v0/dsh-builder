@@ -1,0 +1,55 @@
+name: Build DSH for Android
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout DSH Source
+      uses: actions/checkout@v4
+      with:
+        repository: deepseek-ai/deepseek-harness
+        fetch-depth: 0
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+
+    - name: Patch flock for Android
+      run: |
+        cd native/system/packages/entry/src
+        # Патчим flock.ts, чтобы разрешить android
+        sed -i "s/platform !== 'linux' && platform !== 'darwin'/platform !== 'linux' && platform !== 'darwin' && platform !== 'android'/" flock.ts
+        echo "Патч применен:"
+        grep -n "platform !==" flock.ts
+
+    - name: Install Dependencies
+      run: |
+        npm install -g pnpm
+        pnpm install --frozen-lockfile
+
+    - name: Build DSH
+      run: |
+        pnpm run build:lib:host
+        pnpm run build:native-system
+        # Собираем CLI
+        pnpm run build:lib
+
+    - name: Package Artifact
+      run: |
+        mkdir -p dist-artifact
+        # Копируем собранные файлы (зависит от структуры DSH)
+        cp -r dist/* dist-artifact/ 2>/dev/null || true
+        cp -r node_modules dist-artifact/ 2>/dev/null || true
+        cp -r native dist-artifact/ 2>/dev/null || true
+        tar -czvf dsh-android-arm64.tar.gz dist-artifact/
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: dsh-android-arm64
+        path: dsh-android-arm64.tar.gz
