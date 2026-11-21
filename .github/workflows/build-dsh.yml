@@ -1,6 +1,8 @@
 name: Build DSH for Android
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -23,26 +25,22 @@ jobs:
 
     - name: Patch flock for Android
       run: |
-        python3 - << 'PYEOF'
+        python3 - << 'INNEREOF'
         import os
-
         file_path = 'native/system/packages/entry/src/flock.ts'
-
         with open(file_path, 'r') as f:
             content = f.read()
-
         old_str = "if (platform !== 'linux' && platform !== 'darwin') {"
         new_str = "if (platform !== 'linux' && platform !== 'darwin' && platform !== 'android') {"
-
         if old_str in content:
             content = content.replace(old_str, new_str)
             with open(file_path, 'w') as f:
                 f.write(content)
-            print("[+] Патч применен успешно.")
+            print('[+] Патч применен успешно.')
         else:
-            print("[-] Не нашел строку для патча.")
+            print('[-] Не нашел строку для патча.')
             exit(1)
-        PYEOF
+        INNEREOF
 
     - name: Install Dependencies
       run: |
@@ -53,20 +51,20 @@ jobs:
       run: |
         echo "[*] Скачиваем esbuild для Android"
         python3 - << 'INNEREOF'
-import os, urllib.request, tarfile, shutil, subprocess
-ver = '0.28.1'
-url = f'https://registry.npmjs.org/@esbuild/android-arm64/-/android-arm64-{ver}.tgz'
-tgz = 'esbuild-android.tgz'
-dest = '.esbuild-android'
-urllib.request.urlretrieve(url, tgz)
-if os.path.exists(dest): shutil.rmtree(dest)
-os.makedirs(dest)
-with tarfile.open(tgz, 'r:gz') as tar: tar.extractall(path=dest)
-bin_path = os.path.join(dest, 'package', 'bin', 'esbuild')
-os.chmod(bin_path, 0o755)
-print(f'[+] esbuild: {bin_path}')
-subprocess.run([bin_path, '--version'])
-INNEREOF
+        import os, urllib.request, tarfile, shutil, subprocess
+        ver = '0.28.1'
+        url = f'https://registry.npmjs.org/@esbuild/android-arm64/-/android-arm64-{ver}.tgz'
+        tgz = 'esbuild-android.tgz'
+        dest = '.esbuild-android'
+        urllib.request.urlretrieve(url, tgz)
+        if os.path.exists(dest): shutil.rmtree(dest)
+        os.makedirs(dest)
+        with tarfile.open(tgz, 'r:gz') as tar: tar.extractall(path=dest)
+        bin_path = os.path.join(dest, 'package', 'bin', 'esbuild')
+        os.chmod(bin_path, 0o755)
+        print(f'[+] esbuild: {bin_path}')
+        subprocess.run([bin_path, '--version'])
+        INNEREOF
         npm install --no-save --force --no-package-lock @rolldown/binding-android-arm64 || true
 
     - name: Build DSH
@@ -78,26 +76,26 @@ INNEREOF
 
     - name: Patch FiberState for Android
       run: |
-        python3 - << 'PYEOF'
-import os
-pb = 'apps/cli/src/profile-boot.ts'
-if not os.path.exists(pb):
-    print(f'[-] {pb} не найден')
-    exit(1)
-with open(pb, 'r', encoding='utf-8') as f:
-    lines = f.readlines()
-changed = 0
-for i, line in enumerate(lines):
-    if 'ctx.fiber.state === FiberState.ACTIVE' in line:
-        lines[i] = line.replace('FiberState.ACTIVE', '2')
-        changed += 1
-with open(pb, 'w', encoding='utf-8') as f:
-    f.writelines(lines)
-print(f'[+] Заменено FiberState.ACTIVE: {changed}')
-if changed == 0:
-    print('[-] Ничего не заменено, проверь файл')
-    exit(1)
-PYEOF
+        python3 - << 'INNEREOF'
+        import os
+        pb = 'apps/cli/src/profile-boot.ts'
+        if not os.path.exists(pb):
+            print(f'[-] {pb} не найден')
+            exit(1)
+        with open(pb, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        changed = 0
+        for i, line in enumerate(lines):
+            if 'ctx.fiber.state === FiberState.ACTIVE' in line:
+                lines[i] = line.replace('FiberState.ACTIVE', '2')
+                changed += 1
+        with open(pb, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        print(f'[+] Заменено FiberState.ACTIVE: {changed}')
+        if changed == 0:
+            print('[-] Ничего не заменено, проверь файл')
+            exit(1)
+        INNEREOF
 
     - name: Package Artifact
       run: |
