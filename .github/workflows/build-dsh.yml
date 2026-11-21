@@ -51,14 +51,53 @@ jobs:
 
     - name: Install Android-native build tools
       run: |
-        npm install --no-save --force --no-package-lock @esbuild/android-arm64@0.28.1 || true
+        echo "[*] Скачиваем esbuild для Android"
+        python3 - << 'INNEREOF'
+import os, urllib.request, tarfile, shutil, subprocess
+ver = '0.28.1'
+url = f'https://registry.npmjs.org/@esbuild/android-arm64/-/android-arm64-{ver}.tgz'
+tgz = 'esbuild-android.tgz'
+dest = '.esbuild-android'
+urllib.request.urlretrieve(url, tgz)
+if os.path.exists(dest): shutil.rmtree(dest)
+os.makedirs(dest)
+with tarfile.open(tgz, 'r:gz') as tar: tar.extractall(path=dest)
+bin_path = os.path.join(dest, 'package', 'bin', 'esbuild')
+os.chmod(bin_path, 0o755)
+print(f'[+] esbuild: {bin_path}')
+subprocess.run([bin_path, '--version'])
+INNEREOF
         npm install --no-save --force --no-package-lock @rolldown/binding-android-arm64 || true
 
     - name: Build DSH
       run: |
         pnpm run build:lib:host
         pnpm run build:lib:client
+        pnpm run build:web
         pnpm run build:native-system
+
+    - name: Patch FiberState for Android
+      run: |
+        python3 - << 'PYEOF'
+import os
+pb = 'apps/cli/src/profile-boot.ts'
+if not os.path.exists(pb):
+    print(f'[-] {pb} не найден')
+    exit(1)
+with open(pb, 'r', encoding='utf-8') as f:
+    lines = f.readlines()
+changed = 0
+for i, line in enumerate(lines):
+    if 'ctx.fiber.state === FiberState.ACTIVE' in line:
+        lines[i] = line.replace('FiberState.ACTIVE', '2')
+        changed += 1
+with open(pb, 'w', encoding='utf-8') as f:
+    f.writelines(lines)
+print(f'[+] Заменено FiberState.ACTIVE: {changed}')
+if changed == 0:
+    print('[-] Ничего не заменено, проверь файл')
+    exit(1)
+PYEOF
 
     - name: Package Artifact
       run: |
@@ -80,7 +119,7 @@ jobs:
         cp -a node_modules dist-artifact/
         echo "=== Что в dist-artifact ==="
         ls -la dist-artifact/
-        tar -czvf dsh-android-arm64.tar.gz dist-artifact/
+        tar --hard-dereference -czvf dsh-android-arm64.tar.gz dist-artifact/
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
