@@ -25,23 +25,20 @@ jobs:
         import os
 
         file_path = 'native/system/packages/entry/src/flock.ts'
-        
+
         with open(file_path, 'r') as f:
             content = f.read()
-        
-        # Ищем проверку платформы и добавляем android
+
         old_str = "if (platform !== 'linux' && platform !== 'darwin') {"
         new_str = "if (platform !== 'linux' && platform !== 'darwin' && platform !== 'android') {"
-        
+
         if old_str in content:
             content = content.replace(old_str, new_str)
             with open(file_path, 'w') as f:
                 f.write(content)
             print("[+] Патч применен успешно.")
         else:
-            print("[-] Не нашел строку для патча. Возможно, формат другой.")
-            print("Текущее содержимое:")
-            print(content[:500])
+            print("[-] Не нашел строку для патча.")
             exit(1)
         PYEOF
 
@@ -52,16 +49,27 @@ jobs:
 
     - name: Build DSH
       run: |
-        # Собираем только то, что нужно для запуска (без тяжелого клиента)
         pnpm run build:lib:host
         pnpm run build:native-system
 
     - name: Package Artifact
       run: |
+        set -e
         mkdir -p dist-artifact
-        cp -r dist/* dist-artifact/ 2>/dev/null || true
-        cp -r node_modules dist-artifact/ 2>/dev/null || true
+        echo "=== Что собралось ==="
+        ls -la
+        ls -la dist 2>/dev/null || echo "NO dist/"
+        echo "=== Копируем ==="
+        cp package.json dist-artifact/
+        cp pnpm-workspace.yaml dist-artifact/ 2>/dev/null || true
+        cp -r dist dist-artifact/ 2>/dev/null || true
+        cp -r bin dist-artifact/ 2>/dev/null || true
+        cp -r packages dist-artifact/ 2>/dev/null || true
+        cp -r apps dist-artifact/ 2>/dev/null || true
         cp -r native dist-artifact/ 2>/dev/null || true
+        cp -r node_modules dist-artifact/ 2>/dev/null || true
+        echo "=== Что в dist-artifact ==="
+        ls -la dist-artifact/
         tar -czvf dsh-android-arm64.tar.gz dist-artifact/
 
     - name: Upload Artifact
