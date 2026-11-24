@@ -138,7 +138,27 @@ jobs:
         out_dir = 'node_modules/@deepseek-ai/node-addon-system-android-arm64/bin/bionic'
         os.makedirs(out_dir, exist_ok=True)
         out_node = os.path.join(out_dir, 'system.node')
-        node_include = '/usr/include/node'
+        import shutil as _shutil
+        node_include = None
+        _node_real = os.path.realpath(_shutil.which("node") or "/usr/bin/node")
+        for _c in [
+            os.path.join(os.path.dirname(os.path.dirname(_node_real)), "include", "node"),
+            "/usr/include/node",
+            "/usr/local/include/node",
+        ]:
+            if os.path.exists(os.path.join(_c, "node_api.h")):
+                node_include = _c
+                break
+        if not node_include:
+            import glob as _g
+            for _gyp in _g.glob(os.path.expanduser("~/.cache/node-gyp/*/include/node")):
+                if os.path.exists(os.path.join(_gyp, "node_api.h")):
+                    node_include = _gyp
+                    break
+        if not node_include:
+            print("[-] node_api.h не найден ни в одном кандидате")
+            sys.exit(1)
+        print(f"[+] node headers: {node_include}")
         cmd = [
             'clang', '-shared', '-fPIC', '-o', out_node,
             flock_c,
