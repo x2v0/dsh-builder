@@ -18,28 +18,57 @@ subprocess.run(['git', 'clone',
 os.chdir(clone)
 print(f'[cd] {clone}')
 
-# Применяем патч.
-# Патч лежит в репе dsh-builder (checkout в builder/), а GITHUB_WORKSPACE — это harness.
-patch_file = os.environ.get('REQUIRE_BUILTIN_PATCH', 'patches/require-builtin-android.patch')
-# Кандидаты: явный env, builder/patches, корень workspace/patches
-candidates = [
-    os.environ.get('REQUIRE_BUILTIN_PATCH'),
-    os.path.join(os.environ.get('GITHUB_WORKSPACE', ''), 'builder', 'patches',
-                 os.path.basename(patch_file)),
-    os.path.join(os.environ.get('GITHUB_WORKSPACE', ''), patch_file),
-    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                 'patches', os.path.basename(patch_file)),
-]
-patch_abs = next((c for c in candidates if c and os.path.exists(c)), None)
-if not patch_abs:
-    sys.exit(f'[-] patch not found; tried: {candidates}')
-print(f'[+] using patch: {patch_abs}')
+# Применяем изменения по анкорам (без git apply — устойчиво к сдвигу строк)
+def patch_file(path, old, new, label):
+    if not os.path.exists(path):
+        sys.exit(f'[-] {label}: file not found: {path}')
+    content = open(path).read()
+    if old not in content:
+        sys.exit(f'[-] {label}: anchor not found in {path}')
+    open(path, 'w').write(content.replace(old, new, 1))
+    print(f'[+] patched {label}: {path}')
 
-r = subprocess.run(['git', 'apply', '--verbose', patch_abs], capture_output=True, text=True)
-print(r.stdout)
-if r.returncode != 0:
-    print(r.stderr)
-    sys.exit('[-] git apply failed')
+patch_file(
+    'packages/native/src/runtime_context/platform.cc',
+    '#elif defined(__linux__) && defined(__GLIBC__) && defined(__aarch64__)\n'
+    '  return ReadLinuxGlibcArm64CurrentV8Context(isolate, symbols);',
+    '#elif defined(__linux__) && defined(__GLIBC__) && defined(__aarch64__)\n'
+    '  return ReadLinuxGlibcArm64CurrentV8Context(isolate, symbols);\n'
+    '#elif defined(__linux__) && defined(__aarch64__)\n'
+    '  // Android/bionic (Termux): the arm64 reader only calls resolved symbols,\n'
+    '  // so bionic can use the same path.\n'
+    '  return ReadLinuxGlibcArm64CurrentV8Context(isolate, symbols);',
+    'runtime_context/platform.cc',
+)
+
+patch_file(
+    'packages/native/src/runtime_probe/platform.cc',
+    '#elif defined(__linux__) && defined(__GLIBC__) && defined(__aarch64__)\n'
+    '  return ParseLinuxGlibcArm64BuiltinModuleRequireGetterOffset(getter);',
+    '#elif defined(__linux__) && defined(__GLIBC__) && defined(__aarch64__)\n'
+    '  return ParseLinuxGlibcArm64BuiltinModuleRequireGetterOffset(getter);\n'
+    '#elif defined(__linux__) && defined(__aarch64__)\n'
+    '  // Android/bionic: reuse the AAPCS64 getter matcher.\n'
+    '  return ParseLinuxGlibcArm64BuiltinModuleRequireGetterOffset(getter);',
+    'runtime_probe/platform.cc',
+)
+
+# build.ts: добавляем android в whitelist, если его нет
+bt = 'scripts/build.ts'
+if os.path.exists(bt):
+    content = open(bt).read()
+    if "'android'" not in content and '"android"' not in content:
+        for anchor in ["'linux'", '"linux"']:
+            if anchor in content:
+                open(bt, 'w').write(content.replace(anchor, anchor + ", 'android'", 1))
+                print(f'[+] patched build.ts: whitelist + android')
+                break
+        else:
+            print('[!] build.ts: linux anchor not found, whitelist not updated')
+    else:
+        print('[+] build.ts: android already in whitelist')
+else:
+    print('[!] build.ts not found, skipping whitelist patch')
 
 # Сборка
 env = os.environ.copy()
