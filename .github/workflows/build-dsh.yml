@@ -17,6 +17,13 @@ jobs:
       with:
         repository: deepseek-ai/deepseek-harness
         fetch-depth: 0
+    - name: Checkout dsh-builder (scripts + patches)
+      uses: actions/checkout@v4
+      with:
+        repository: x2v0/dsh-builder
+        path: builder
+        fetch-depth: 1
+
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -25,7 +32,7 @@ jobs:
 
     - name: Patch flock for Android
       run: |
-        python3 scripts/patch_flock_ts.py
+        python3 builder/scripts/patch_flock_ts.py
 
     - name: Install Dependencies
       run: |
@@ -34,7 +41,7 @@ jobs:
 
     - name: Install Android-native build tools
       run: |
-        python3 scripts/install_android_build_tools.py
+        python3 builder/scripts/install_android_build_tools.py
 
     - name: Build DSH
       run: |
@@ -45,19 +52,19 @@ jobs:
 
     - name: Patch FiberState for Android
       run: |
-        python3 scripts/patch_fiberstate.py
+        python3 builder/scripts/patch_fiberstate.py
 
     - name: Patch flock.c for Android (flock -> fcntl)
       run: |
-        python3 scripts/patch_flock_c.py
+        python3 builder/scripts/patch_flock_c.py
 
     - name: Build system.node for Android
       run: |
-        python3 scripts/build_system_node.py
+        python3 builder/scripts/build_system_node.py
 
     - name: Build require_builtin.node for Android
       run: |
-        python3 scripts/build_require_builtin.py
+        python3 builder/scripts/build_require_builtin.py
 
     - name: Package Artifact
       run: |
