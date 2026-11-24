@@ -4,7 +4,6 @@
 Upstream (deepseek-ai/dsh-node-addon-require-builtin) уже поддерживает Android
 в platform.cc (через __linux__ && __aarch64__). Нам нужно только:
   1. Добавить 'android' в whitelist платформ в scripts/build.ts.
-    subprocess.run(['pnpm', 'install', '--frozen-lockfile'], cwd=dest_dir, check=False)
   2. Собрать через `pnpm build:native:napi`.
   3. Скопировать require_builtin.node в оба места (nodeabi + napi).
 """
@@ -64,6 +63,9 @@ patch_build_ts()
 
 # Сборка
 print('[*] Запуск: pnpm build:native:napi')
+r = subprocess.run(['pnpm', 'install', '--frozen-lockfile'])
+if r.returncode != 0:
+    sys.exit('[-] pnpm install упал')
 r = subprocess.run(['pnpm', 'build:native:napi'])
 if r.returncode != 0:
     sys.exit('[-] pnpm build:native:napi упал')
