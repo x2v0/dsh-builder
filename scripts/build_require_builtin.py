@@ -18,13 +18,22 @@ subprocess.run(['git', 'clone',
 os.chdir(clone)
 print(f'[cd] {clone}')
 
-# Применяем патч
+# Применяем патч.
+# Патч лежит в репе dsh-builder (checkout в builder/), а GITHUB_WORKSPACE — это harness.
 patch_file = os.environ.get('REQUIRE_BUILTIN_PATCH', 'patches/require-builtin-android.patch')
-# Патч лежит в репе dsh-builder, но мы в клоне — ищем по абсолютному пути
-repo = os.environ.get('GITHUB_WORKSPACE', os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-patch_abs = os.path.join(repo, patch_file)
-if not os.path.exists(patch_abs):
-    sys.exit(f'[-] patch not found: {patch_abs}')
+# Кандидаты: явный env, builder/patches, корень workspace/patches
+candidates = [
+    os.environ.get('REQUIRE_BUILTIN_PATCH'),
+    os.path.join(os.environ.get('GITHUB_WORKSPACE', ''), 'builder', 'patches',
+                 os.path.basename(patch_file)),
+    os.path.join(os.environ.get('GITHUB_WORKSPACE', ''), patch_file),
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                 'patches', os.path.basename(patch_file)),
+]
+patch_abs = next((c for c in candidates if c and os.path.exists(c)), None)
+if not patch_abs:
+    sys.exit(f'[-] patch not found; tried: {candidates}')
+print(f'[+] using patch: {patch_abs}')
 
 r = subprocess.run(['git', 'apply', '--verbose', patch_abs], capture_output=True, text=True)
 print(r.stdout)
