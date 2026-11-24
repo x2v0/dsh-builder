@@ -25,22 +25,7 @@ jobs:
 
     - name: Patch flock for Android
       run: |
-        python3 - << 'INNEREOF'
-        import os
-        file_path = 'native/system/packages/entry/src/flock.ts'
-        with open(file_path, 'r') as f:
-            content = f.read()
-        old_str = "if (platform !== 'linux' && platform !== 'darwin') {"
-        new_str = "if (platform !== 'linux' && platform !== 'darwin' && platform !== 'android') {"
-        if old_str in content:
-            content = content.replace(old_str, new_str)
-            with open(file_path, 'w') as f:
-                f.write(content)
-            print('[+] Патч применен успешно.')
-        else:
-            print('[-] Не нашел строку для патча.')
-            exit(1)
-        INNEREOF
+        python3 scripts/patch_flock_ts.py
 
     - name: Install Dependencies
       run: |
@@ -49,22 +34,7 @@ jobs:
 
     - name: Install Android-native build tools
       run: |
-        echo "[*] Скачиваем esbuild для Android"
-        python3 - << 'INNEREOF'
-        import os, urllib.request, tarfile, shutil
-        ver = '0.28.1'
-        url = f'https://registry.npmjs.org/@esbuild/android-arm64/-/android-arm64-{ver}.tgz'
-        tgz = 'esbuild-android.tgz'
-        dest = '.esbuild-android'
-        urllib.request.urlretrieve(url, tgz)
-        if os.path.exists(dest): shutil.rmtree(dest)
-        os.makedirs(dest)
-        with tarfile.open(tgz, 'r:gz') as tar: tar.extractall(path=dest)
-        bin_path = os.path.join(dest, 'package', 'bin', 'esbuild')
-        os.chmod(bin_path, 0o755)
-        print(f'[+] esbuild: {bin_path} (не запускаем на Linux)')
-        INNEREOF
-        npm install --no-save --force --no-package-lock @rolldown/binding-android-arm64 || true
+        python3 scripts/install_android_build_tools.py
 
     - name: Build DSH
       run: |
@@ -75,88 +45,15 @@ jobs:
 
     - name: Patch FiberState for Android
       run: |
-        python3 - << 'INNEREOF'
-        import os
-        pb = 'apps/cli/src/profile-boot.ts'
-        if not os.path.exists(pb):
-            print(f'[-] {pb} не найден')
-            exit(1)
-        with open(pb, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        changed = 0
-        for i, line in enumerate(lines):
-            if 'ctx.fiber.state === FiberState.ACTIVE' in line:
-                lines[i] = line.replace('FiberState.ACTIVE', '2')
-                changed += 1
-        with open(pb, 'w', encoding='utf-8') as f:
-            f.writelines(lines)
-        print(f'[+] Заменено FiberState.ACTIVE: {changed}')
-        if changed == 0:
-            print('[-] Ничего не заменено, проверь файл')
-            exit(1)
-        INNEREOF
+        python3 scripts/patch_fiberstate.py
 
     - name: Patch flock.c for Android (flock -> fcntl)
       run: |
-        python3 - << 'INNEREOF'
-        import os
-        flock_c = 'native/system/packages/entry/src/flock.c'
-        if not os.path.exists(flock_c):
-            print(f'[-] {flock_c} не найден')
-            exit(1)
-        with open(flock_c, 'r') as f:
-            content = f.read()
-        old_code = "request->error = flock(request->fd, LOCK_EX | LOCK_NB) == 0 ? 0 : errno;"
-        new_code = '''
-    struct flock fl;
-    fl.l_type = F_WRLCK;
-    fl.l_whence = SEEK_SET;
-    fl.l_start = 0;
-    fl.l_len = 0;
-    request->error = fcntl(request->fd, F_SETLK, &fl) == 0 ? 0 : errno;
-'''
-        if old_code in content:
-            content = content.replace(old_code, new_code)
-            if '#include <fcntl.h>' not in content:
-                content = content.replace('#include <sys/file.h>', '#include <sys/file.h>\n#include <fcntl.h>')
-            with open(flock_c, 'w') as f:
-                f.write(content)
-            print('[+] flock.c пропатчен (flock -> fcntl).')
-        else:
-            print('[-] Не нашел вызов flock() в коде.')
-            exit(1)
-        INNEREOF
+        python3 scripts/patch_flock_c.py
 
     - name: Build system.node for Android
       run: |
-        python3 - << 'INNEREOF'
-        import os
-        import subprocess
-        import json
-        flock_c = 'native/system/packages/entry/src/flock.c'
-        out_dir = 'node_modules/@deepseek-ai/node-addon-system-android-arm64/bin/bionic'
-        os.makedirs(out_dir, exist_ok=True)
-        out_node = os.path.join(out_dir, 'system.node')
-        node_include = '/usr/include/node'
-        cmd = [
-            'clang', '-shared', '-fPIC', '-o', out_node,
-            flock_c,
-            f'-I{node_include}',
-            '-D__ANDROID__',
-            '-Wl,-z,nodelete'
-        ]
-        print(f'[*] Компиляция: {" ".join(cmd)}')
-        subprocess.run(cmd, check=True)
-        print(f'[+] Успех! Создан {out_node}')
-        pkg_dir = 'node_modules/@deepseek-ai/node-addon-system-android-arm64'
-        with open(os.path.join(pkg_dir, 'package.json'), 'w') as f:
-            json.dump({
-                "name": "@deepseek-ai/node-addon-system-android-arm64",
-                "version": "0.1.2",
-                "main": "bin/bionic/system.node"
-            }, f, indent=2)
-        print('[+] Пакет @deepseek-ai/node-addon-system-android-arm64 готов.')
-        INNEREOF
+        python3 scripts/build_system_node.py
 
     - name: Build require_builtin.node for Android
       run: |
