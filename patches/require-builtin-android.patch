@@ -1,0 +1,26 @@
+--- a/packages/native/src/runtime_context/platform.cc
++++ b/packages/native/src/runtime_context/platform.cc
+@@ -1,5 +1,9 @@
+ #elif defined(__linux__) && defined(__GLIBC__) && defined(__aarch64__)
+   return ReadLinuxGlibcArm64CurrentV8Context(isolate, symbols);
++#elif defined(__linux__) && defined(__aarch64__)
++  // Android/bionic (Termux): the arm64 reader only calls resolved symbols,
++  // so bionic can use the same path.
++  return ReadLinuxGlibcArm64CurrentV8Context(isolate, symbols);
+ #else
+ 
+--- a/packages/native/src/runtime_probe/platform.cc
++++ b/packages/native/src/runtime_probe/platform.cc
+@@ -1,5 +1,9 @@
+ #elif defined(__linux__) && defined(__GLIBC__) && defined(__aarch64__)
+   return ParseLinuxGlibcArm64BuiltinModuleRequireGetterOffset(getter);
++#elif defined(__linux__) && defined(__aarch64__)
++  // Android/bionic: reuse the AAPCS64 getter matcher.
++  return ParseLinuxGlibcArm64BuiltinModuleRequireGetterOffset(getter);
+ #else
+ 
+--- a/scripts/build.ts
++++ b/scripts/build.ts
+@@ -1,3 +1,3 @@
+-const supported = ['darwin', 'linux', 'win32'];
++const supported = ['darwin', 'linux', 'win32', 'android'];
