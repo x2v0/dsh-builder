@@ -37,7 +37,11 @@ jobs:
     - name: Install Dependencies
       run: |
         npm install -g pnpm
-        pnpm install --frozen-lockfile
+        # NOTE: drop --frozen-lockfile and set the target platform so pnpm
+        # resolves android-arm64 variants of optional native packages
+        # (koffi, esbuild, rolldown, lightningcss, ...). The DSH lockfile
+        # has no android options, so frozen is not possible here.
+        pnpm install --no-frozen-lockfile --config.supportedArchitectures='{"os":["android"],"cpu":["arm64"]}'
 
     - name: Install Android-native build tools
       run: |
