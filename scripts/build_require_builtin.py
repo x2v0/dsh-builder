@@ -61,6 +61,22 @@ def patch_build_ts():
 
 patch_build_ts()
 
+# Расширяем build.ts: добавляем поддержку android-arm64 через NARB_TARGET_OS
+build_ts_path = os.path.join(clone, 'scripts', 'build.ts')
+if os.path.exists(build_ts_path):
+    with open(build_ts_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    anchor = "function runtimeSuffix(): string {"
+    if anchor in content and "NARB_TARGET_OS" not in content:
+        new_line = anchor + "\n  if (process.env.NARB_TARGET_OS === 'android') return `android-${process.env.NARB_TARGET_ARCH || 'arm64'}`;"
+        content = content.replace(anchor, new_line, 1)
+        with open(build_ts_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print('[+] build.ts: добавлен android-arm64 в runtimeSuffix')
+    else:
+        print('[=] build.ts: android уже добавлен или анкор не найден')
+
+
 # Сборка
 print('[*] Запуск: pnpm build:native:napi')
 r = subprocess.run(['pnpm', 'install', '--frozen-lockfile'])
