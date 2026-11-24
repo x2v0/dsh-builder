@@ -100,6 +100,7 @@ jobs:
       run: |
         python3 - << 'INNEREOF'
         import os
+        import sys
         flock_c = 'native/system/packages/entry/src/flock.c'
         if not os.path.exists(flock_c):
             print(f'[-] {flock_c} не найден')
@@ -127,6 +128,13 @@ jobs:
             print('[-] Не нашел вызов flock() в коде.')
             exit(1)
         INNEREOF
+
+    - name: Install Android NDK
+      uses: android-actions/setup-android@v3
+      with:
+        packages: 'ndk;27.0.12077973'
+        accept-android-sdk-licenses: true
+      id: ndk
 
     - name: Build system.node for Android
       run: |
@@ -159,13 +167,26 @@ jobs:
             print("[-] node_api.h не найден ни в одном кандидате")
             sys.exit(1)
         print(f"[+] node headers: {node_include}")
-        cmd = [
-            'clang', '-shared', '-fPIC', '-o', out_node,
-            flock_c,
-            f'-I{node_include}',
-            '-D__ANDROID__',
-            '-Wl,-z,nodelete'
-        ]
+        _ndk_root = os.environ.get('ANDROID_NDK_HOME') or os.environ.get('ANDROID_NDK_ROOT') or ''
+        if not _ndk_root:
+            for _p in ['/usr/local/lib/android/sdk/ndk',
+                       os.path.expanduser('~/android-sdk/ndk'),
+                       os.path.expanduser('~/.android/sdk/ndk')]:
+                if os.path.isdir(_p):
+                    _vers = sorted(os.listdir(_p))
+                    if _vers:
+                        _ndk_root = os.path.join(_p, _vers[-1])
+                        break
+        if not _ndk_root:
+            print('[-] NDK не найден')
+            sys.exit(1)
+        _cc = os.path.join(_ndk_root, 'toolchains', 'llvm', 'prebuilt', 'linux-x86_64', 'bin', 'aarch64-linux-android30-clang')
+        if not os.path.exists(_cc):
+            print(f'[-] компилятор не найден: {_cc}')
+            sys.exit(1)
+        print(f'[+] NDK clang: {_cc}')
+        cmd = [_cc, '--target=aarch64-linux-android30', '-shared', '-fPIC', '-o', out_node,
+               flock_c, f'-I{node_include}', '-D__ANDROID__', '-Wl,-z,nodelete']
         print(f'[*] Компиляция: {" ".join(cmd)}')
         subprocess.run(cmd, check=True)
         print(f'[+] Успех! Создан {out_node}')
@@ -176,6 +197,12 @@ jobs:
                 "version": "0.1.2",
                 "main": "bin/bionic/system.node"
             }, f, indent=2)
+        import subprocess as _sp
+        _file = _sp.run(['file', out_node], capture_output=True, text=True).stdout.strip()
+        print(f'[+] {out_node}: {_file}')
+        if 'aarch64' not in _file and 'ARM aarch64' not in _file and 'ARM64' not in _file:
+            print('[ERROR] system.node не arm64! Результат: ' + _file)
+            sys.exit(1)
         print('[+] Пакет @deepseek-ai/node-addon-system-android-arm64 готов.')
         INNEREOF
 
