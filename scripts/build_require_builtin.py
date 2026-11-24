@@ -1,6 +1,16 @@
 #!/usr/bin/env python3
-"""Build require_builtin.node for android-arm64 on GitHub Actions (ubuntu-latest)."""
-import os, subprocess, sys, shutil
+"""Build require_builtin.node for android-arm64 on GitHub Actions (ubuntu-latest).
+
+Upstream (deepseek-ai/dsh-node-addon-require-builtin) уже поддерживает Android
+в platform.cc (через __linux__ && __aarch64__). Нам нужно только:
+  1. Добавить 'android' в whitelist платформ в scripts/build.ts.
+  2. Собрать через `pnpm build:native:napi`.
+  3. Скопировать require_builtin.node в оба места (nodeabi + napi).
+"""
+import os
+import subprocess
+import sys
+import shutil
 
 # Правило #1: cd первой строкой
 work = os.environ.get('RUNNER_TEMP') or os.environ.get('HOME')
@@ -12,71 +22,52 @@ if os.path.isdir(clone):
     shutil.rmtree(clone)
 
 # Клон upstream (HEAD, не тег)
-subprocess.run(['git', 'clone',
-    'https://github.com/deepseek-ai/dsh-node-addon-require-builtin.git', clone], check=True)
+subprocess.run([
+    'git', 'clone',
+    'https://github.com/deepseek-ai/dsh-node-addon-require-builtin.git',
+    clone,
+], check=True)
 
 os.chdir(clone)
 print(f'[cd] {clone}')
 
-# Применяем изменения по анкорам (без git apply — устойчиво к сдвигу строк)
-def patch_file(path, old, new, label):
+
+def patch_build_ts():
+    """Добавляет 'android' в whitelist платформ в scripts/build.ts (идемпотентно)."""
+    path = 'scripts/build.ts'
     if not os.path.exists(path):
-        sys.exit(f'[-] {label}: file not found: {path}')
-    content = open(path).read()
-    if old not in content:
-        sys.exit(f'[-] {label}: anchor not found in {path}')
-    open(path, 'w').write(content.replace(old, new, 1))
-    print(f'[+] patched {label}: {path}')
+        print('[!] scripts/build.ts не найден, пропускаем whitelist')
+        return
 
-patch_file(
-    'packages/native/src/runtime_context/platform.cc',
-    '#elif defined(__linux__) && defined(__GLIBC__) && defined(__aarch64__)\n'
-    '  return ReadLinuxGlibcArm64CurrentV8Context(isolate, symbols);',
-    '#elif defined(__linux__) && defined(__GLIBC__) && defined(__aarch64__)\n'
-    '  return ReadLinuxGlibcArm64CurrentV8Context(isolate, symbols);\n'
-    '#elif defined(__linux__) && defined(__aarch64__)\n'
-    '  // Android/bionic (Termux): the arm64 reader only calls resolved symbols,\n'
-    '  // so bionic can use the same path.\n'
-    '  return ReadLinuxGlibcArm64CurrentV8Context(isolate, symbols);',
-    'runtime_context/platform.cc',
-)
+    with open(path, 'r', encoding='utf-8') as f:
+        content = f.read()
 
-patch_file(
-    'packages/native/src/runtime_probe/platform.cc',
-    '#elif defined(__linux__) && defined(__GLIBC__) && defined(__aarch64__)\n'
-    '  return ParseLinuxGlibcArm64BuiltinModuleRequireGetterOffset(getter);',
-    '#elif defined(__linux__) && defined(__GLIBC__) && defined(__aarch64__)\n'
-    '  return ParseLinuxGlibcArm64BuiltinModuleRequireGetterOffset(getter);\n'
-    '#elif defined(__linux__) && defined(__aarch64__)\n'
-    '  // Android/bionic: reuse the AAPCS64 getter matcher.\n'
-    '  return ParseLinuxGlibcArm64BuiltinModuleRequireGetterOffset(getter);',
-    'runtime_probe/platform.cc',
-)
+    if "'android'" in content or '"android"' in content:
+        print('[+] build.ts: android уже в whitelist')
+        return
 
-# build.ts: добавляем android в whitelist, если его нет
-bt = 'scripts/build.ts'
-if os.path.exists(bt):
-    content = open(bt).read()
-    if "'android'" not in content and '"android"' not in content:
-        for anchor in ["'linux'", '"linux"']:
-            if anchor in content:
-                open(bt, 'w').write(content.replace(anchor, anchor + ", 'android'", 1))
-                print(f'[+] patched build.ts: whitelist + android')
-                break
-        else:
-            print('[!] build.ts: linux anchor not found, whitelist not updated')
-    else:
-        print('[+] build.ts: android already in whitelist')
-else:
-    print('[!] build.ts not found, skipping whitelist patch')
+    # Ищем анкор 'linux' (в кавычках) и добавляем 'android' рядом
+    for anchor in ["'linux'", '"linux"']:
+        if anchor in content:
+            # Заменяем первое вхождение anchor на anchor + ", 'android'"
+            new_content = content.replace(anchor, anchor + ", 'android'", 1)
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            print(f'[+] build.ts: добавлен android после {anchor}')
+            return
+
+    print('[!] build.ts: анкор linux не найден, whitelist не обновлён')
+
+
+patch_build_ts()
 
 # Сборка
-env = os.environ.copy()
-r = subprocess.run(['pnpm', 'build:native:napi'], env=env)
+print('[*] Запуск: pnpm build:native:napi')
+r = subprocess.run(['pnpm', 'build:native:napi'])
 if r.returncode != 0:
-    sys.exit('[-] build failed')
+    sys.exit('[-] pnpm build:native:napi упал')
 
-# Поиск产物
+# Поиск результата
 candidates = [
     'packages/require-builtin/entry/build/napi/napi-v9-android-arm64/require_builtin.node',
     'packages/internal-loader/entry/build/napi/napi-v9-android-arm64/require_builtin.node',
@@ -88,19 +79,28 @@ for c in candidates:
         src = full
         print(f'[+] found: {full}')
         break
+
 if not src:
+    # Диагностика: показываем, что вообще собралось
+    print('[-] require_builtin.node не найден. Ищем build/napi:')
+    for root, dirs, files in os.walk(os.path.join(clone, 'packages')):
+        if 'napi' in root and 'require_builtin.node' in files:
+            print(f'    {os.path.join(root, "require_builtin.node")}')
     sys.exit('[-] require_builtin.node not found')
 
 # Копирование в DSH
 dsh = os.environ.get('GITHUB_WORKSPACE', os.getcwd())
 os.chdir(dsh)
 print(f'[cd] {dsh}')
-for d in [
+
+dst_dirs = [
     'node_modules/.pnpm/node-addon-require-builtin@0.1.9/node_modules/node-addon-require-builtin/build/nodeabi/node-v147-android-arm64',
     'node_modules/.pnpm/node-addon-require-builtin@0.1.9/node_modules/node-addon-require-builtin/build/napi/napi-v9-android-arm64',
-]:
+]
+for d in dst_dirs:
     os.makedirs(d, exist_ok=True)
-    shutil.copyfile(src, os.path.join(d, 'require_builtin.node'))
-    print(f'[+] copied -> {d}/require_builtin.node')
+    dst = os.path.join(d, 'require_builtin.node')
+    shutil.copyfile(src, dst)
+    print(f'[+] copied -> {dst}')
 
 print('[+] done')
