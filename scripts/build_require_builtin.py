@@ -66,7 +66,10 @@ print('[*] Запуск: pnpm build:native:napi')
 r = subprocess.run(['pnpm', 'install', '--frozen-lockfile'])
 if r.returncode != 0:
     sys.exit('[-] pnpm install упал')
-r = subprocess.run(['pnpm', 'build:native:napi'])
+env = os.environ.copy()
+env['NARB_TARGET_OS'] = 'android'
+env['NARB_TARGET_ARCH'] = 'arm64'
+r = subprocess.run(['pnpm', 'build:native:napi'], env=env)
 if r.returncode != 0:
     sys.exit('[-] pnpm build:native:napi упал')
 
