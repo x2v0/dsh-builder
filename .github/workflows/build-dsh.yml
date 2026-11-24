@@ -43,6 +43,10 @@ jobs:
       run: |
         python3 builder/scripts/install_android_build_tools.py
 
+    - name: Apply Android patches
+      run: |
+        bash builder/scripts/apply_patches.sh
+
     - name: Build DSH
       run: |
         pnpm run build:lib:host
