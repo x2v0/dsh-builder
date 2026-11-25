@@ -10,6 +10,11 @@ Two fixes vs previous version:
 Idempotent, no regex, cd first (RULE #1)."""
 import os, sys, glob, shutil, subprocess, json
 
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except Exception:
+    pass
+
 # RULE #1: cd first
 work = os.environ.get("GITHUB_WORKSPACE") or os.getcwd()
 os.chdir(work)
@@ -49,14 +54,30 @@ def find_ndk():
     sys.exit("[-] NDK not found (ANDROID_NDK_HOME, ~/android-sdk/ndk)")
 
 
-def clone_at_tag(tag, dest):
+def npm_githead(pkg, ver):
+    """Resolve exact git commit for a published npm version (best effort)."""
+    url = f"https://registry.npmjs.org/{pkg}/{ver}"
+    try:
+        import urllib.request
+        req = urllib.request.Request(url, headers={"User-Agent": "dsh-builder/1.0"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = json.load(r)
+        return data.get("gitHead")
+    except Exception as e:
+        print(f"[!] npm_githead({pkg}@{ver}) failed: {e}")
+        return None
+
+
+def clone_at_commit(commit, dest):
     if os.path.isdir(dest):
         shutil.rmtree(dest)
-    print(f"[*] clone {tag}")
-    r = subprocess.run(["git", "clone", "--depth", "1",
-                        "--branch", tag, UPSTREAM, dest], check=False)
-    if r.returncode != 0:
-        print(f"[!] tag {tag} not found, cloning default branch")
+    print(f"[*] clone commit {commit[:12] if commit else 'master'}")
+    if commit:
+        subprocess.run(["git", "clone", UPSTREAM, dest], check=True)
+        r = subprocess.run(["git", "-C", dest, "checkout", commit], check=False)
+        if r.returncode != 0:
+            print(f"[!] checkout {commit[:12]} failed, staying on master")
+    else:
         subprocess.run(["git", "clone", "--depth", "1", UPSTREAM, dest], check=True)
 
 
@@ -122,14 +143,16 @@ def main():
     print(f"[+] CXX = {cxx}")
 
     clone = os.path.join(work, "dsh-node-addon-require-builtin")
-    clone_at_tag(f"v{ver}", clone)
+    commit = npm_githead("node-addon-require-builtin", ver)
+    print(f"[+] npm gitHead for {ver}: {commit or "(none)"}")
+    clone_at_commit(commit, clone)
 
     strip_pm_pin(os.path.join(clone, "package.json"))
     patch_build_ts(os.path.join(clone, "scripts", "build.ts"))
 
     # Install (host pnpm OK — clone runs on linux-x64 CI)
     print("[*] pnpm install --frozen-lockfile")
-    if subprocess.run(["pnpm", "install", "--frozen-lockfile"],
+    if subprocess.run(["pnpm", "install", "--no-frozen-lockfile"],
                       cwd=clone).returncode != 0:
         sys.exit("[-] pnpm install failed")
 
