@@ -99,10 +99,17 @@ node --import tsx/esm apps/cli/src/bin.ts web
 
 ## 5. Текущее состояние
 
-- Коммит `702173b` — `ci: resolve android-arm64 natives via supportedArchitectures`.
-- Изменены `build-dsh.yml`, `apply_patches.sh`; добавлены `patches/09`, `patches/10`.
-- Прогон `45567769814` — проверка, что патчи 09/10 легли.
-- Следующий шаг: дождаться, посмотреть `Apply Android patches` лог, скачать артефакт, проверить `grep -c 'termux-hardlink-fallback'`.
+- Прогон **45577005621** (коммит `fc0400e`) — `success`.
+- Патчи `[OK]`: **02**, **05**, **09**, **10**.
+  - `02-session-persistence-link-rename` -> `session-persistence-jsonl`
+  - `09-attachment-local-link-rename` -> `attachment-local`
+  - `10-fs-local-link-rename` -> `fs-local`
+  - `link()` -> `rename()` fallback в артефакте (главная часть «шаг 2»).
+- Патчи `[SKIP]`: 01, 03, 06, 08 (устаревшие анкоры), 04 (opener переехал), 07 (proot отключён).
+- `system.node` — arm64, Android 30, NDK r27d (работает).
+- `require_builtin` — x86-64 (сломан).
+- `koffi`/`node-pty`/`esbuild`/`rolldown` — linux-x64.
+- Следующий шаг: скачать `45577005621`, проверить `grep -c` для 02/09/10, **запустить на телефоне**.
 
 ## 6. Известные проблемы
 
@@ -181,4 +188,39 @@ cd ~/dsh-builder && grep -n -iE '\[OK\]|\[SKIP\]|\[WARN\]|error|failed' ~/run<id
 
 ### 6.5 proot запрещён
 Никакого `proot`. Всё нативно в Termux. Патч `07-sandbox-local-proot-runner.patch` **отключён** (закомментирован в `apply_patches.sh`). Если `sandbox-local` падает при `web` без proot — либо отключить sandbox на Android, либо дать нативный путь (без proot). В upstream `proot` не идёт.
+
+
+## 11. Следующий шаг после возрождения
+
+1. **Скачать артефакт 45577005621** и проверить фактически:
+   ```bash
+   cd ~/dsh-builder && gh run download 45577005621 -D ~/dsh-final4
+   cd ~/dsh-final4 && mkdir -p dsh-test4 && tar -xzf dsh-android-arm64/dsh-android-arm64.tar.gz -C dsh-test4
+   cd ~/dsh-final4/dsh-test4/dist-artifact
+   grep -c 'rename(tmp, finalPath)' packages/session/session-persistence-jsonl/lib/index.js
+   grep -c 'termux-hardlink-fallback' packages/attachment/attachment-local/lib/index.js
+   grep -c 'termux-noreplace-fallback' packages/fs/fs-local/lib/index.js
+   ```
+   `1` у каждого = патчи 02/09/10 в артефакте.
+
+2. **Запуск на телефоне** (целевая команда):
+   ```bash
+   cd ~/dsh-final4/dsh-test4/dist-artifact
+   export DSH_HOME="$HOME/.dsh-sessions"
+   export DEEPSEEK_API_KEY="sk-dummy"
+   node --import tsx/esm apps/cli/src/bin.ts web
+   ```
+
+3. **По результату запуска** — чинить точечно:
+   - `require_builtin` x86-64 -> env `NARB_TARGET_OS`/`NARB_TARGET_ARCH` в `build_require_builtin.py`;
+   - `koffi`/`node-pty` linux-x64 -> проверить, грузятся ли при `web`; если да — NDK или отключить;
+   - 01/03/06/08 `[SKIP]` -> пересобрать по факту, если упадут (терминал, subprocess, workspace, fs-search);
+   - `sandbox-local` без proot -> отключить sandbox на Android или нативный путь (proot запрещён).
+
+4. **PR-стратегия** (после успешного запуска):
+   - PR-1: `fs` hardlink fallback (`10`);
+   - PR-2: `attachment` fallback + durability guard (`09`);
+   - PR-3: `session-persistence` fallback (`02`);
+   - PR-4: koffi `statx` bionic;
+   - PR-5: `require_builtin` Android.
 
