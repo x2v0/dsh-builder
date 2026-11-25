@@ -1,44 +1,30 @@
---- a/lib/index.js
-+++ b/lib/index.js
-@@ -362,1 +362,7 @@
--	const handle = await open(path, constants.O_RDONLY);
-+	/* termux-durability-guard */
-+	let handle;
-+	try {
-+		handle = await open(path, constants.O_RDONLY);
-+	} catch (error) {
-+		if (error.code === "EACCES" || error.code === "EPERM" || error.code === "ENOENT") return;
-+		throw error;
-+	}
-@@ -423,0 +430,25 @@
-+/**
-+ * Publish one staged object into place.
-+ * Android refuses link() for untrusted apps (EACCES: no hard links).
-+ * rename() inside the same private root is equally atomic, so fall back to it.
-+ */
-+/* termux-hardlink-fallback */
-+async function publishStagedName(source, target) {
-+	try {
-+		await link(source, target);
-+	} catch (error) {
-+		if (!(error instanceof Error && "code" in error && error.code === "EACCES")) throw error;
-+		await rename(source, target);
-+	}
-+}
-+/** Remove a staging name, tolerating one already consumed by the rename fallback. */
-+async function removeStagedName(path) {
-+	try {
-+		await unlink(path);
-+	} catch (error) {
-+		if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-+	}
-+}
-@@ -481,1 +512,1 @@
+--- a/packages/attachment/attachment-local/lib/index.js
++++ b/packages/attachment/attachment-local/lib/index.js
+@@ publishImmutableAlias: link -> copyFile fallback on bionic @@
+ 		try {
 -			await link(source, target);
-+			await publishStagedName(source, target);
-@@ -542,1 +573,1 @@
++			/* termux-hardlink-fallback: bionic link() may EPERM/ENOSYS; copy instead (source stays immutable) */
++			try {
++				await link(source, target);
++			} catch (error) {
++				if (!(error instanceof Error && "code" in error && (error.code === "EPERM" || error.code === "ENOSYS" || error.code === "EACCES"))) throw error;
++				await copyFile(source, target);
++			}
+ 		} catch (error) {
+@@ publishStagedObject: link -> rename fallback on bionic @@
+ 		try {
 -			await link(staged.path, target);
-+			await publishStagedName(staged.path, target);
-@@ -548,1 +579,1 @@
++			/* termux-hardlink-fallback: bionic link() may EPERM/ENOSYS; rename moves staged into place */
++			let linked = true;
++			try {
++				await link(staged.path, target);
++			} catch (error) {
++				if (!(error instanceof Error && "code" in error && (error.code === "EPERM" || error.code === "ENOSYS" || error.code === "EACCES"))) throw error;
++				await rename(staged.path, target);
++				linked = false;
++			}
+ 		} catch (error) {
 -		await unlink(staged.path);
-+		await removeStagedName(staged.path);
++		/* termux-hardlink-fallback: skip unlink if rename already moved staged */
++		if (linked) await unlink(staged.path);
+ 		await chmod(target, 256);
