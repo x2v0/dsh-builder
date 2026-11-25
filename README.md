@@ -24,10 +24,12 @@ node --import tsx/esm apps/cli/src/bin.ts web
 | `system.node` (NDK r27d) | ✅ ARM aarch64 |
 | `esbuild` (4 версии) | ✅ ARM aarch64 |
 | `@rolldown/binding-android-arm64` (2 версии) | ✅ ARM aarch64 |
-| `require_builtin.node` | ⏳ NDK cross-compile, прогон `45682861933` |
+| `require_builtin.node` | ✅ ARM aarch64 (Android 30, NDK r27d), product `require-builtin` (прогон `45704335477`) |
 | Патчи 02 / 05 / 10 | ✅ в артефакте |
 | Патч 09 (attachment) | ⏳ anchor drift |
-| `web` на телефоне | ⏳ после `require_builtin` |
+| `system.node` path | ✅ локальный фикс (`bin/bionic/` → `bin/`); CI-патч (§6.6) в работе |
+| `rename is not defined` | ⏳ патч 02 добавил `rename()` без импорта — фикс в работе (§6.7) |
+| `web` на телефоне | ✅ стартует, UI открывается (127.0.0.1); turn доходит до выполнения |
 
 Подробно — [RESURECT.md](RESURECT.md) §5, §6.1, §11.
 
@@ -58,17 +60,17 @@ DSH `0.2.3-alpha.2` (`@deepseek-ai/dsh-root`), платформа android-arm64
 
 | Модуль | Arch | Статус |
 |---|---|---|
-| `system.node` | ARM aarch64, Android 30, NDK r27d | ✅ |
-| `require_builtin` | NDK cross-compile (прогон `45682861933`) | ⏳ |
+| `system.node` | ARM aarch64 (Android 30, NDK r27d), `bionic/` path | ✅ |
+| `require_builtin` | ARM aarch64 (Android 30, NDK r27d), product `require-builtin` | ✅ |
 | `node-pty` | ARM aarch64 (`linux-arm64`, не android) | ⚠️ TBD |
 | `koffi` | x86-64 (`linux-x64`) | ❌ нет android-сборки |
 | `esbuild` | ARM aarch64 (4/4: 0.21.5, 0.25.12, 0.28.1, 0.28.2) | ✅ |
 | `rolldown` | ARM aarch64 (`binding-android-arm64`, 2 версии) | ✅ |
 
-**`require_builtin`:** файл лежит по пути `...-android-arm64/...`,
-но `file` показывает x86-64 ELF. Причина — `build_require_builtin.py`
-не экспортирует `NARB_TARGET_OS=android` / `NARB_TARGET_ARCH=arm64`
-в `env=` для `node-gyp`; бинарь собран под хост, но сохранён в android-путь.
+**`require_builtin`:** прогон `45704335477` — ✅ `ARM aarch64, Android 30, NDK r27d`,
+product `require-builtin` (было `internal-loader`). Фикс — `NARB_PRODUCT=require-builtin`
+в `build_require_builtin.py` + fail-closed `verify_product()` (`strings | grep`).
+Продукт `internal-loader` собирался по дефолту `build.ts` upstream.
 
 **`esbuild`:** `install_android_build_tools.py` переписан (коммит `f5c149f`) —
 теперь ставит `@esbuild/android-arm64@<ver>` в `node_modules` каждой

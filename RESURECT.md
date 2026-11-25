@@ -231,6 +231,36 @@ cd ~/dsh-builder && grep -n -iE '\[OK\]|\[SKIP\]|\[WARN\]|error|failed' ~/run<id
 Никакого `proot`. Всё нативно в Termux. Патч `07-sandbox-local-proot-runner.patch` **отключён** (закомментирован в `apply_patches.sh`). Если `sandbox-local` падает при `web` без proot — либо отключить sandbox на Android, либо дать нативный путь (без proot). В upstream `proot` не идёт.
 
 
+### 6.6 system.node path mismatch (`bin/bionic/` vs `bin/`)
+
+**Симптом (после require_builtin):** при первом turn — `Cannot find module
+'.../node_modules/@deepseek-ai/node-addon-system-android-arm64/bin/system.node'`.
+
+**Причина:** `native/system/packages/entry/lib/flock.js` собирает путь так:
+`bin/<libc>/system.node` для linux, `bin/system.node` для остальных. Android в списке
+платформ есть (`platform !== 'android'`), но **`bionic` в выборе libc не учтён** — лоадер
+ищет `bin/system.node`, а `build_system_node.py` кладёт в `bin/bionic/system.node`.
+
+**Локальный workaround (телефон):** `cp bin/bionic/system.node bin/system.node`.
+После этого `flock` грузится, turn идёт дальше.
+
+**CI-фикс:** `patch_flock_path_android.py` — `if (platform === 'android') { filename = join('bionic', filename); }`
+перед `if (platform === 'linux')` в `flock.js`, маркер `/* termux-bionic-system-node */`.
+Вызов после `Apply Android patches` (как `patch_flock_c.py`).
+
+### 6.7 `rename is not defined` (патч 02 без импорта)
+
+**Симптом:** turn падает с `ReferenceError: rename is not defined`.
+
+**Причина:** `patches/02-session-persistence-link-rename.patch` вставил `await rename(...)`
+в `session-persistence-jsonl/lib/index.js` (строки ~2056, ~3349), но `rename` **не импортирован**
+из `node:fs/promises` (строка 4 импорта: `link, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, stat, truncate`).
+
+**Локальный фикс:** `readFile, readdir, realpath, rename,` в импорте `node:fs/promises`.
+
+**CI-фикс:** `patch_session_persistence.py` — добавление `rename` в импорт + вставка fallback
+`link → rename` по anchor, маркер `/* termux-link-fallback */`. После `Apply Android patches`.
+
 ## 11. Следующий шаг
 
 ### 11.1 Если прогон 45682861933 дал `[+] done — version 0.1.10, aarch64`
