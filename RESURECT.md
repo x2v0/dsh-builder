@@ -99,22 +99,63 @@ node --import tsx/esm apps/cli/src/bin.ts web
 
 ## 5. Текущее состояние
 
-- Прогон **45577005621** (коммит `fc0400e`) — `success`.
-- Патчи `[OK]`: **02**, **05**, **09**, **10**.
-  - `02-session-persistence-link-rename` -> `session-persistence-jsonl`
-  - `09-attachment-local-link-rename` -> `attachment-local`
-  - `10-fs-local-link-rename` -> `fs-local`
-  - `link()` -> `rename()` fallback в артефакте (главная часть «шаг 2»).
-- Патчи `[SKIP]`: 01, 03, 06, 08 (устаревшие анкоры), 04 (opener переехал), 07 (proot отключён).
-- `system.node` — arm64, Android 30, NDK r27d (работает).
-- `require_builtin` — x86-64 (сломан).
-- `koffi`/`node-pty`/`esbuild`/`rolldown` — linux-x64.
-- Следующий шаг: скачать `45577005621`, проверить `grep -c` для 02/09/10, **запустить на телефоне**.
+Артефакт собирается. Прогон **45682861933** (commit `1bb2448`) — первый, где install в клоне
+`dsh-node-addon-require-builtin` проходит (`--ignore-scripts`), впервые дошли до
+`pnpm build:native:napi`.
+
+### Что твёрдо работает (артефакт 45650323936, проверено `file`)
+
+- `system.node` — ARM aarch64, Android 30, NDK r27d ✅
+- `esbuild` — **4/4** android-arm64 (0.21.5, 0.25.12, 0.28.1, 0.28.2), `ARM aarch64` ✅
+- `@rolldown/binding-android-arm64` — 2 ноды (1.1.1, 1.2.7) ✅
+- патчи 02 (`session-persistence`), 05, 10 (`fs-local`) — в артефакте ✅
+- `web` больше не падает на esbuild / rolldown
+
+### Что осталось (единственный блокер `web`)
+
+- `require_builtin.node` — собран **x86-64**, лежит в `...-android-arm64/`, лоадер не грузит.
+  Плюс дрейф версии: файлы в `0.1.9`, `pnpm` поставил `0.1.10` → `Cannot find module`.
+  См. §6.1.
+
+### Ожидание от прогона 45682861933
+
+```
+[*] pnpm install --no-frozen-lockfile --ignore-scripts
+[*] pnpm build:native:napi (NDK cross-compile)
+[arch] ... ARM aarch64
+[+] done — version 0.1.10, aarch64
+```
+
+Если `[+] done` — скачать артефакт, `file` оба `.node`, **запустить `web`**.
 
 ## 6. Известные проблемы
 
-### 6.1 require_builtin x86-64
-`build_require_builtin.py` собирает под хост. Причина: не экспортирует `NARB_TARGET_OS=android NARB_TARGET_ARCH=arm64` в `subprocess.run(env=...)`. Фикс: добавить env. Сверить с коммитами `4845404`/`e6aed72`.
+### 6.1 require_builtin x86-64 + version drift
+
+**Симптом:** `dsh: host preparation failed: No usable native binding found for
+node-addon-require-builtin-android-arm64 (auto)`. В артефакте `.node` лежит в
+`node-addon-require-builtin@0.1.9/build/{nodeabi,napi}/...-android-arm64/`, но `file`
+показывает `x86-64`, а лоадер ищет в `0.1.10` → `Cannot find module`.
+
+**Два бага в `build_require_builtin.py`:**
+1. `CXX` не переопределён → `build.ts` берёт хост-`c++` → x86-64 в папке `android-arm64/`.
+2. Версия захардкожена `0.1.9` → `pnpm install` поставил `0.1.10` → файлы не там, где ищет лоадер.
+
+**Что сделано (commit `1bb2448`):**
+- `find_installed_version()` — `glob .pnpm/node-addon-require-builtin@*` → старшая semver.
+- `CC`/`CXX`/`AR` → NDK `aarch64-linux-android30-clang(++)` (как в `build_system_node.py`).
+- `LDFLAGS`/`CFLAGS`/`CXXFLAGS` = `--target=aarch64-linux-android30 -fPIC`.
+- `NARB_TARGET_OS=android`, `NARB_TARGET_ARCH=arm64` — для имени пути в `build.ts`.
+- `npm_githead()` — точный коммит из реестра npm; fallback на master.
+- `patch_pm_allow_builds()` — `package.json#pnpm.strictDepBuilds=false` + `.npmrc strict-dep-builds=false`.
+- `pnpm install --no-frozen-lockfile --ignore-scripts` — обходит `ERR_PNPM_IGNORED_BUILDS` на pnpm<10.3.
+- `verify_arch()` — `file | grep aarch64`; **падает**, если не arm64 (раньше копировал молча x86-64).
+- Копирует в оба пути (`napi/napi-v9-android-arm64/`, `nodeabi/node-v147-android-arm64/`) **для определённой версии**.
+
+**Остаточные риски:**
+- `gitHead` для `0.1.10` = `(none)` → клонируется `master`, а не тег. Если API разойдётся — пин на коммит.
+- `build.ts` может иметь `case 'android': throw` — если `pnpm build:native:napi failed`, пришли 20 строк лога.
+- NDK env может не дойти до `c++` в spawn — если `[arch] ... x86-64`, жёстко прописать путь в `build.ts`.
 
 ### 6.2 koffi/node-pty/esbuild/rolldown linux-x64
 pnpm резолвит под хост. Варианты: (A) NDK + npm install из src (CFLAGS=--target=aarch64-linux-android30, патч node-gyp delete variables.OS); (B) prebuilt @koromix/koffi-android-arm64@3.3.8 (нарушает GOAL #5). Сначала проверить, грузятся ли при `tsx apps/cli/src/bin.ts web`.
@@ -190,37 +231,51 @@ cd ~/dsh-builder && grep -n -iE '\[OK\]|\[SKIP\]|\[WARN\]|error|failed' ~/run<id
 Никакого `proot`. Всё нативно в Termux. Патч `07-sandbox-local-proot-runner.patch` **отключён** (закомментирован в `apply_patches.sh`). Если `sandbox-local` падает при `web` без proot — либо отключить sandbox на Android, либо дать нативный путь (без proot). В upstream `proot` не идёт.
 
 
-## 11. Следующий шаг после возрождения
+## 11. Следующий шаг
 
-1. **Скачать артефакт 45577005621** и проверить фактически:
-   ```bash
-   cd ~/dsh-builder && gh run download 45577005621 -D ~/dsh-final4
-   cd ~/dsh-final4 && mkdir -p dsh-test4 && tar -xzf dsh-android-arm64/dsh-android-arm64.tar.gz -C dsh-test4
-   cd ~/dsh-final4/dsh-test4/dist-artifact
-   grep -c 'rename(tmp, finalPath)' packages/session/session-persistence-jsonl/lib/index.js
-   grep -c 'termux-hardlink-fallback' packages/attachment/attachment-local/lib/index.js
-   grep -c 'termux-noreplace-fallback' packages/fs/fs-local/lib/index.js
-   ```
-   `1` у каждого = патчи 02/09/10 в артефакте.
+### 11.1 Если прогон 45682861933 дал `[+] done — version 0.1.10, aarch64`
 
-2. **Запуск на телефоне** (целевая команда):
-   ```bash
-   cd ~/dsh-final4/dsh-test4/dist-artifact
-   export DSH_HOME="$HOME/.dsh-sessions"
-   export DEEPSEEK_API_KEY="sk-dummy"
-   node --import tsx/esm apps/cli/src/bin.ts web
-   ```
+```bash
+cd ~/dsh-builder && gh run download 45682861933 -D ~/dsh-final7
+cd ~/dsh-final7 && mkdir -p dsh-test7 && tar -xzf dsh-android-arm64/dsh-android-arm64.tar.gz -C dsh-test7
+cd ~/dsh-final7/dsh-test7/dist-artifact
+find . -name 'require_builtin.node' | while read f; do printf '%s\t' "$f"; file "$f" | grep -oE 'ARM aarch64|x86-64|Android [0-9]+'; done
+```
 
-3. **По результату запуска** — чинить точечно:
-   - `require_builtin` x86-64 -> env `NARB_TARGET_OS`/`NARB_TARGET_ARCH` в `build_require_builtin.py`;
-   - `koffi`/`node-pty` linux-x64 -> проверить, грузятся ли при `web`; если да — NDK или отключить;
-   - 01/03/06/08 `[SKIP]` -> пересобрать по факту, если упадут (терминал, subprocess, workspace, fs-search);
-   - `sandbox-local` без proot -> отключить sandbox на Android или нативный путь (proot запрещён).
+Ожидаем **оба `ARM aarch64`**. Тогда — запуск:
 
-4. **PR-стратегия** (после успешного запуска):
-   - PR-1: `fs` hardlink fallback (`10`);
-   - PR-2: `attachment` fallback + durability guard (`09`);
-   - PR-3: `session-persistence` fallback (`02`);
-   - PR-4: koffi `statx` bionic;
-   - PR-5: `require_builtin` Android.
+```bash
+cd ~/dsh-final7/dsh-test7/dist-artifact
+export DSH_HOME="$HOME/.dsh-sessions"
+export DEEPSEEK_API_KEY="sk-dummy"
+timeout 120 node --import tsx/esm apps/cli/src/bin.ts web 2>&1 | tee ~/launch5.log
+echo "=== exit: $? ==="
+grep -n -iE 'ENOSYS|EACCES|Cannot find module|invalid ELF|undefined symbol|koffi|node-pty|require_builtin|sandbox|proot|listening|http://' ~/launch5.log | head -30
+tail -40 ~/launch5.log
+```
+
+`exit: 124` = сервер живой, ждёт — **цель достигнута**.
+
+### 11.2 Если прогон упал дальше по цепочке
+
+| Симптом в логе | Что делать |
+|---|---|
+| `pnpm install` OK, `pnpm build:native:napi failed` | 20 строк контекста → патч `build.ts` под `case 'android'` |
+| `pnpm install` OK, `[arch] ... x86-64` | NDK env не дошёл → жёстко прописать путь `CXX` в `build.ts` |
+| `require_builtin.node not produced` | find-вывод → расширить `candidates` |
+| `ERR_PNPM_*` новый | текст в лог → точечный фикс |
+
+### 11.3 После успешного `web` — PR-стратегия
+
+1. PR-1: `fs` hardlink fallback (патч 10).
+2. PR-2: `attachment` fallback + durability guard (патч 09, доделать).
+3. PR-3: `session-persistence` fallback (патч 02).
+4. PR-4: `koffi` `statx` bionic (`koffi-statx.patch`).
+5. PR-5: `require_builtin` Android (`require-builtin-android.patch`).
+
+### 11.4 Открытые вопросы (не блокеры `web`)
+
+- `koffi`/`node-pty` — linux-x64/linux-arm64 prebuilt. Проверить при загрузке; если падают — NDK из src или отключить.
+- Патч 09 (`attachment`) — anchor drift; писать как `patch_attachment_link.py` (по образцу `patch_flock_c.py`).
+- `sandbox-local` без proot — отключить для Android или нативный путь (proot запрещён, §6.5).
 

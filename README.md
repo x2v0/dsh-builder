@@ -17,6 +17,20 @@ export DEEPSEEK_API_KEY="sk-..."
 node --import tsx/esm apps/cli/src/bin.ts web
 ```
 
+## Текущий статус
+
+| Шаг | Статус |
+|---|---|
+| `system.node` (NDK r27d) | ✅ ARM aarch64 |
+| `esbuild` (4 версии) | ✅ ARM aarch64 |
+| `@rolldown/binding-android-arm64` (2 версии) | ✅ ARM aarch64 |
+| `require_builtin.node` | ⏳ NDK cross-compile, прогон `45682861933` |
+| Патчи 02 / 05 / 10 | ✅ в артефакте |
+| Патч 09 (attachment) | ⏳ anchor drift |
+| `web` на телефоне | ⏳ после `require_builtin` |
+
+Подробно — [RESURECT.md](RESURECT.md) §5, §6.1, §11.
+
 ## Артефакт
 
 DSH `0.2.3-alpha.2` (`@deepseek-ai/dsh-root`), платформа android-arm64
@@ -45,11 +59,11 @@ DSH `0.2.3-alpha.2` (`@deepseek-ai/dsh-root`), платформа android-arm64
 | Модуль | Arch | Статус |
 |---|---|---|
 | `system.node` | ARM aarch64, Android 30, NDK r27d | ✅ |
-| `require_builtin` | x86-64 (лежит в `*-android-arm64/`) | ❌ §6.1 |
+| `require_builtin` | NDK cross-compile (прогон `45682861933`) | ⏳ |
 | `node-pty` | ARM aarch64 (`linux-arm64`, не android) | ⚠️ TBD |
 | `koffi` | x86-64 (`linux-x64`) | ❌ нет android-сборки |
-| `esbuild` | x86-64 (`linux-x64`) | ❌ фикс запушен (`f5c149f`), проверка в артефакте `45618216177` |
-| `rolldown` | x86-64 (`linux-x64`) | ❌ нет android-сборки |
+| `esbuild` | ARM aarch64 (4/4: 0.21.5, 0.25.12, 0.28.1, 0.28.2) | ✅ |
+| `rolldown` | ARM aarch64 (`binding-android-arm64`, 2 версии) | ✅ |
 
 **`require_builtin`:** файл лежит по пути `...-android-arm64/...`,
 но `file` показывает x86-64 ELF. Причина — `build_require_builtin.py`
