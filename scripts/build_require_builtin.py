@@ -1,128 +1,200 @@
 #!/usr/bin/env python3
 """Build require_builtin.node for android-arm64 on GitHub Actions (ubuntu-latest).
 
-Upstream (deepseek-ai/dsh-node-addon-require-builtin) уже поддерживает Android
-в platform.cc (через __linux__ && __aarch64__). Нам нужно только:
-  1. Добавить 'android' в whitelist платформ в scripts/build.ts.
-  2. Собрать через `pnpm build:native:napi`.
-  3. Скопировать require_builtin.node в оба места (nodeabi + napi).
-"""
-import os
-import subprocess
-import sys
-import shutil
+Two fixes vs previous version:
+  1. NDK cross-compiler (CXX=aarch64-linux-android30-clang++) — previous version
+     used host c++ → x86-64 binary landed in *-android-arm64/ folder.
+  2. Dynamic version detection — previous version hardcoded 0.1.9, but pnpm
+     installed 0.1.10, so loader could not find the file.
 
-# Правило #1: cd первой строкой
-work = os.environ.get('RUNNER_TEMP') or os.environ.get('HOME')
+Idempotent, no regex, cd first (RULE #1)."""
+import os, sys, glob, shutil, subprocess, json
+
+# RULE #1: cd first
+work = os.environ.get("GITHUB_WORKSPACE") or os.getcwd()
 os.chdir(work)
-print(f'[cd] {work}')
+print(f"[cd] {work}")
 
-clone = os.path.join(work, 'dsh-node-addon')
-if os.path.isdir(clone):
-    shutil.rmtree(clone)
-
-# Клон upstream (HEAD, не тег)
-subprocess.run([
-    'git', 'clone',
-    'https://github.com/deepseek-ai/dsh-node-addon-require-builtin.git',
-    clone,
-], check=True)
-
-os.chdir(clone)
-print(f'[cd] {clone}')
+UPSTREAM = "https://github.com/deepseek-ai/dsh-node-addon-require-builtin.git"
 
 
-def patch_build_ts():
-    """Добавляет 'android' в whitelist платформ в scripts/build.ts (идемпотентно)."""
-    path = 'scripts/build.ts'
-    if not os.path.exists(path):
-        print('[!] scripts/build.ts не найден, пропускаем whitelist')
+def find_installed_version():
+    pats = glob.glob("node_modules/.pnpm/node-addon-require-builtin@*")
+    if not pats:
+        sys.exit("[-] node-addon-require-builtin not installed in node_modules/.pnpm")
+    vers = []
+    for p in pats:
+        v = os.path.basename(p).split("@", 1)[1]
+        # strip any pnpm suffix like _peer@x or _patch_hash=...
+        v = v.split("_", 1)[0]
+        vers.append(v)
+    def key(s):
+        return [int(x) if x.isdigit() else 0 for x in s.split(".")]
+    vers.sort(key=key)
+    return vers[-1]
+
+
+def find_ndk():
+    ndk = os.environ.get("ANDROID_NDK_HOME") or os.environ.get("ANDROID_NDK_ROOT") or ""
+    if ndk and os.path.isdir(ndk):
+        return ndk
+    for p in ["/usr/local/lib/android/sdk/ndk",
+              os.path.expanduser("~/android-sdk/ndk"),
+              os.path.expanduser("~/.android/sdk/ndk")]:
+        if os.path.isdir(p):
+            vers = sorted([d for d in os.listdir(p)
+                           if os.path.isdir(os.path.join(p, d))])
+            if vers:
+                return os.path.join(p, vers[-1])
+    sys.exit("[-] NDK not found (ANDROID_NDK_HOME, ~/android-sdk/ndk)")
+
+
+def clone_at_tag(tag, dest):
+    if os.path.isdir(dest):
+        shutil.rmtree(dest)
+    print(f"[*] clone {tag}")
+    r = subprocess.run(["git", "clone", "--depth", "1",
+                        "--branch", tag, UPSTREAM, dest], check=False)
+    if r.returncode != 0:
+        print(f"[!] tag {tag} not found, cloning default branch")
+        subprocess.run(["git", "clone", "--depth", "1", UPSTREAM, dest], check=True)
+
+
+def strip_pm_pin(pkg_path):
+    with open(pkg_path, encoding="utf-8") as f:
+        data = json.load(f)
+    if "packageManager" in data:
+        removed = data.pop("packageManager")
+        with open(pkg_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        print(f"[+] removed packageManager pin ({removed})")
+
+
+def patch_build_ts(build_ts):
+    if not os.path.exists(build_ts):
+        print("[!] scripts/build.ts not found")
         return
-
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(build_ts, encoding="utf-8") as f:
         content = f.read()
-
-    if "'android'" in content or '"android"' in content:
-        print('[+] build.ts: android уже в whitelist')
-        return
-
-    # Ищем анкор 'linux' (в кавычках) и добавляем 'android' рядом
-    for anchor in ["'linux'", '"linux"']:
+    changed = 0
+    # 1) 'android' in platform whitelist
+    if "'android'" not in content and '"android"' not in content:
+        for anchor in ["'linux'", '"linux"']:
+            if anchor in content:
+                content = content.replace(anchor, anchor + ", 'android'", 1)
+                changed += 1
+                break
+    # 2) runtimeSuffix() for android
+    if "NARB_TARGET_OS" not in content:
+        anchor = "function runtimeSuffix(): string {"
         if anchor in content:
-            # Заменяем первое вхождение anchor на anchor + ", 'android'"
-            new_content = content.replace(anchor, anchor + ", 'android'", 1)
-            with open(path, 'w', encoding='utf-8') as f:
-                f.write(new_content)
-            print(f'[+] build.ts: добавлен android после {anchor}')
-            return
-
-    print('[!] build.ts: анкор linux не найден, whitelist не обновлён')
-
-
-patch_build_ts()
-
-# Расширяем build.ts: добавляем поддержку android-arm64 через NARB_TARGET_OS
-build_ts_path = os.path.join(clone, 'scripts', 'build.ts')
-if os.path.exists(build_ts_path):
-    with open(build_ts_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    anchor = "function runtimeSuffix(): string {"
-    if anchor in content and "NARB_TARGET_OS" not in content:
-        new_line = anchor + "\n  if (process.env.NARB_TARGET_OS === 'android') return `android-${process.env.NARB_TARGET_ARCH || 'arm64'}`;"
-        content = content.replace(anchor, new_line, 1)
-        with open(build_ts_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        print('[+] build.ts: добавлен android-arm64 в runtimeSuffix')
-    else:
-        print('[=] build.ts: android уже добавлен или анкор не найден')
+            inject = (anchor +
+                      "\n  if (process.env.NARB_TARGET_OS === 'android') "
+                      "return `android-${process.env.NARB_TARGET_ARCH || 'arm64'}`;")
+            content = content.replace(anchor, inject, 1)
+            changed += 1
+    with open(build_ts, "w", encoding="utf-8") as f:
+        f.write(content)
+    print(f"[+] build.ts patched ({changed} changes)")
 
 
-# Сборка
-print('[*] Запуск: pnpm build:native:napi')
-r = subprocess.run(['pnpm', 'install', '--frozen-lockfile'])
-if r.returncode != 0:
-    sys.exit('[-] pnpm install упал')
-env = os.environ.copy()
-env['NARB_TARGET_OS'] = 'android'
-env['NARB_TARGET_ARCH'] = 'arm64'
-r = subprocess.run(['pnpm', 'build:native:napi'], env=env)
-if r.returncode != 0:
-    sys.exit('[-] pnpm build:native:napi упал')
+def verify_arch(node_file):
+    if not os.path.exists(node_file):
+        return False, "file missing"
+    r = subprocess.run(["file", node_file], capture_output=True, text=True)
+    out = r.stdout
+    if "aarch64" in out or "ARM aarch64" in out:
+        return True, out.strip()
+    return False, out.strip()
 
-# Поиск результата
-candidates = [
-    'packages/require-builtin/entry/build/napi/napi-v9-android-arm64/require_builtin.node',
-    'packages/internal-loader/entry/build/napi/napi-v9-android-arm64/require_builtin.node',
-]
-src = None
-for c in candidates:
-    full = os.path.join(clone, c)
-    if os.path.exists(full):
-        src = full
-        print(f'[+] found: {full}')
-        break
 
-if not src:
-    # Диагностика: показываем, что вообще собралось
-    print('[-] require_builtin.node не найден. Ищем build/napi:')
-    for root, dirs, files in os.walk(os.path.join(clone, 'packages')):
-        if 'napi' in root and 'require_builtin.node' in files:
-            print(f'    {os.path.join(root, "require_builtin.node")}')
-    sys.exit('[-] require_builtin.node not found')
+def main():
+    ver = find_installed_version()
+    print(f"[+] detected version: {ver}")
 
-# Копирование в DSH
-dsh = os.environ.get('GITHUB_WORKSPACE', os.getcwd())
-os.chdir(dsh)
-print(f'[cd] {dsh}')
+    ndk = find_ndk()
+    print(f"[+] NDK: {ndk}")
+    tool_bin = os.path.join(ndk, "toolchains", "llvm", "prebuilt", "linux-x86_64", "bin")
+    cc  = os.path.join(tool_bin, "aarch64-linux-android30-clang")
+    cxx = os.path.join(tool_bin, "aarch64-linux-android30-clang++")
+    if not os.path.exists(cxx):
+        sys.exit(f"[-] NDK clang++ not found at {cxx}")
+    print(f"[+] CXX = {cxx}")
 
-dst_dirs = [
-    'node_modules/.pnpm/node-addon-require-builtin@0.1.9/node_modules/node-addon-require-builtin/build/nodeabi/node-v147-android-arm64',
-    'node_modules/.pnpm/node-addon-require-builtin@0.1.9/node_modules/node-addon-require-builtin/build/napi/napi-v9-android-arm64',
-]
-for d in dst_dirs:
-    os.makedirs(d, exist_ok=True)
-    dst = os.path.join(d, 'require_builtin.node')
-    shutil.copyfile(src, dst)
-    print(f'[+] copied -> {dst}')
+    clone = os.path.join(work, "dsh-node-addon-require-builtin")
+    clone_at_tag(f"v{ver}", clone)
 
-print('[+] done')
+    strip_pm_pin(os.path.join(clone, "package.json"))
+    patch_build_ts(os.path.join(clone, "scripts", "build.ts"))
+
+    # Install (host pnpm OK — clone runs on linux-x64 CI)
+    print("[*] pnpm install --frozen-lockfile")
+    if subprocess.run(["pnpm", "install", "--frozen-lockfile"],
+                      cwd=clone).returncode != 0:
+        sys.exit("[-] pnpm install failed")
+
+    # Cross-compile with NDK
+    env = os.environ.copy()
+    env["CC"]  = cc
+    env["CXX"] = cxx
+    env["AR"]  = os.path.join(tool_bin, "llvm-ar")
+    env["LDFLAGS"] = "--target=aarch64-linux-android30"
+    env["CFLAGS"]  = "--target=aarch64-linux-android30 -fPIC"
+    env["CXXFLAGS"] = "--target=aarch64-linux-android30 -fPIC"
+    env["NARB_TARGET_OS"]   = "android"
+    env["NARB_TARGET_ARCH"] = "arm64"
+    print("[*] pnpm build:native:napi (NDK cross-compile)")
+    if subprocess.run(["pnpm", "build:native:napi"],
+                      cwd=clone, env=env).returncode != 0:
+        sys.exit("[-] build:native:napi failed")
+
+    # Locate result
+    candidates = [
+        "packages/require-builtin/entry/build/napi/napi-v9-android-arm64/require_builtin.node",
+        "packages/internal-loader/entry/build/napi/napi-v9-android-arm64/require_builtin.node",
+    ]
+    src = None
+    for c in candidates:
+        full = os.path.join(clone, c)
+        if os.path.exists(full):
+            src = full
+            break
+    if not src:
+        for root, dirs, files in os.walk(os.path.join(clone, "packages")):
+            if "require_builtin.node" in files and "napi" in root and "android" in root:
+                src = os.path.join(root, "require_builtin.node")
+                break
+    if not src:
+        sys.exit("[-] require_builtin.node not produced")
+
+    ok, info = verify_arch(src)
+    print(f"[arch] {src}")
+    print(f"       {info}")
+    if not ok:
+        sys.exit("[-] built binary is not aarch64 — cross-compile did not apply")
+
+    # Copy to pnpm's installed slot (detected version, both ABI dirs)
+    pkg_base = os.path.join(
+        "node_modules", ".pnpm",
+        f"node-addon-require-builtin@{ver}",
+        "node_modules", "node-addon-require-builtin", "build")
+    dsts = [
+        os.path.join(pkg_base, "napi",    "napi-v9-android-arm64"),
+        os.path.join(pkg_base, "nodeabi", "node-v147-android-arm64"),
+    ]
+    for d in dsts:
+        os.makedirs(d, exist_ok=True)
+        dst = os.path.join(d, "require_builtin.node")
+        shutil.copyfile(src, dst)
+        ok2, info2 = verify_arch(dst)
+        flag = "[+]" if ok2 else "[!]"
+        print(f"{flag} -> {dst}")
+        print(f"       {info2}")
+        if not ok2:
+            sys.exit(f"[-] copied binary at {dst} is not aarch64")
+
+    print(f"[+] done — version {ver}, aarch64")
+
+
+if __name__ == "__main__":
+    main()
