@@ -92,15 +92,18 @@ def strip_pm_pin(pkg_path):
 
 
 def patch_pm_allow_builds(pkg_path):
-    """pnpm 10+ refuses build scripts of dependencies unless approved.
-    For trusted upstream in CI, allow all builds via package.json."""
+    """pnpm 10.3+ has strictDepBuilds:true by default which makes install fail
+    with ERR_PNPM_IGNORED_BUILDS when a dependency has an unreviewed build script.
+    Set strictDepBuilds:false in package.json#pnpm (universal for pnpm>=10.3).
+    Also set dangerouslyAllowAllBuilds for pnpm>=10.9 (harmless on older)."""
     with open(pkg_path, encoding="utf-8") as f:
         data = json.load(f)
     pnpm = data.setdefault("pnpm", {})
+    pnpm["strictDepBuilds"] = False
     pnpm["dangerouslyAllowAllBuilds"] = True
     with open(pkg_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-    print("[+] package.json: pnpm.dangerouslyAllowAllBuilds = true")
+    print("[+] package.json: pnpm.strictDepBuilds=false (primary), dangerouslyAllowAllBuilds=true (best-effort)")
 
 
 def patch_build_ts(build_ts):
@@ -161,10 +164,20 @@ def main():
 
     strip_pm_pin(os.path.join(clone, "package.json"))
     patch_pm_allow_builds(os.path.join(clone, "package.json"))
+    # .npmrc fallback for pnpm versions that don't read package.json#pnpm
+    npmrc = os.path.join(clone, ".npmrc")
+    existing = ""
+    if os.path.exists(npmrc):
+        with open(npmrc, encoding="utf-8") as f:
+            existing = f.read()
+    if "strict-dep-builds" not in existing:
+        with open(npmrc, "a", encoding="utf-8") as f:
+            f.write("strict-dep-builds=false\n")
+        print("[+] .npmrc: strict-dep-builds=false")
     patch_build_ts(os.path.join(clone, "scripts", "build.ts"))
 
     # Install (host pnpm OK — clone runs on linux-x64 CI)
-    print("[*] pnpm install --no-frozen-lockfile (allow-builds)")
+    print("[*] pnpm install --no-frozen-lockfile (strictDepBuilds=false)")
     print("[*] clone: patching pnpm.dangerouslyAllowAllBuilds")
     if subprocess.run(["pnpm", "install", "--no-frozen-lockfile"],
                       cwd=clone).returncode != 0:
