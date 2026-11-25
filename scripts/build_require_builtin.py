@@ -177,9 +177,9 @@ def main():
     patch_build_ts(os.path.join(clone, "scripts", "build.ts"))
 
     # Install (host pnpm OK — clone runs on linux-x64 CI)
-    print("[*] pnpm install --no-frozen-lockfile (strictDepBuilds=false)")
+    print("[*] pnpm install --no-frozen-lockfile --ignore-scripts")
     print("[*] clone: patching pnpm.dangerouslyAllowAllBuilds")
-    if subprocess.run(["pnpm", "install", "--no-frozen-lockfile"],
+    if subprocess.run(["pnpm", "install", "--no-frozen-lockfile", "--ignore-scripts"],
                       cwd=clone).returncode != 0:
         sys.exit("[-] pnpm install failed")
 
