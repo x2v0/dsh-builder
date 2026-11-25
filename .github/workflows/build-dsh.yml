@@ -66,6 +66,14 @@ jobs:
       run: |
         python3 builder/scripts/patch_flock_c.py
 
+    - name: Patch flock.js path for Android (bin/bionic)
+      run: |
+        python3 builder/scripts/patch_flock_path_android.py
+
+    - name: Patch session-persistence rename import for Android
+      run: |
+        python3 builder/scripts/patch_session_persistence.py
+
     - name: Build system.node for Android
       run: |
         python3 builder/scripts/build_system_node.py
