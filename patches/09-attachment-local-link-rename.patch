@@ -1,30 +1,16 @@
 --- a/lib/index.js
 +++ b/lib/index.js
-@@ -359,7 +359,14 @@
-      * Make a directory's entries durable (fsync on a read-only directory handle).
-      */
-     async function fsyncDirectory(path) {
--        const handle = await open(path, constants.O_RDONLY);
-+        /* termux-durability-guard */
-+        let handle;
-+        try {
-+            handle = await open(path, constants.O_RDONLY);
-+        } catch (error) {
-+            if (error.code === "EACCES" || error.code === "EPERM" || error.code === "ENOENT") return;
-+            throw error;
-+        }
-@@ -478,7 +485,7 @@
--                    await link(source, target);
-+                    await publishStagedName(source, target);
-@@ -539,7 +546,7 @@
--                    await link(staged.path, target);
-+                    await publishStagedName(staged.path, target);
-@@ -545,7 +552,7 @@
--            await unlink(staged.path);
-+            await removeStagedName(staged.path);
-@@ -426,6 +433,32 @@
-  * root: staged write, fsync, hard-link into place, digest-verified EEXIST
-  */
+@@ -362,1 +362,7 @@
+-	const handle = await open(path, constants.O_RDONLY);
++	/* termux-durability-guard */
++	let handle;
++	try {
++		handle = await open(path, constants.O_RDONLY);
++	} catch (error) {
++		if (error.code === "EACCES" || error.code === "EPERM" || error.code === "ENOENT") return;
++		throw error;
++	}
+@@ -423,0 +430,25 @@
 +/**
 + * Publish one staged object into place.
 + * Android refuses link() for untrusted apps (EACCES: no hard links).
@@ -32,19 +18,27 @@
 + */
 +/* termux-hardlink-fallback */
 +async function publishStagedName(source, target) {
-+    try {
-+        await link(source, target);
-+    } catch (error) {
-+        if (!(error instanceof Error && "code" in error && error.code === "EACCES")) throw error;
-+        await rename(source, target);
-+    }
++	try {
++		await link(source, target);
++	} catch (error) {
++		if (!(error instanceof Error && "code" in error && error.code === "EACCES")) throw error;
++		await rename(source, target);
++	}
 +}
 +/** Remove a staging name, tolerating one already consumed by the rename fallback. */
 +async function removeStagedName(path) {
-+    try {
-+        await unlink(path);
-+    } catch (error) {
-+        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-+    }
++	try {
++		await unlink(path);
++	} catch (error) {
++		if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
++	}
 +}
- async function publishStagedObject(root, target, staged) {
+@@ -481,1 +512,1 @@
+-			await link(source, target);
++			await publishStagedName(source, target);
+@@ -542,1 +573,1 @@
+-			await link(staged.path, target);
++			await publishStagedName(staged.path, target);
+@@ -548,1 +579,1 @@
+-		await unlink(staged.path);
++		await removeStagedName(staged.path);

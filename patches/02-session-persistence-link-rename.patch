@@ -1,21 +1,20 @@
 --- a/lib/index.js
 +++ b/lib/index.js
-@@ -1,6 +1,6 @@
- import z from "@deepseek-ai/schemastery";
- import { readdirSync } from "node:fs";
--import { link, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, stat, truncate } from "node:fs/promises";
-+import { link, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, rename, stat, truncate } from "node:fs/promises";
- import { dirname, join, parse, resolve, toNamespacedPath } from "node:path";
- import { performance } from "node:perf_hooks";
- import { scheduler } from "node:timers/promises";
-@@ -1127,6 +1127,10 @@
- 		try {
- 			await link(tmp, finalPath);
- 			linked = true;
+@@ -2053,1 +2053,7 @@
+-		await internals.fs.link(staged, currentPath);
++		try {
++			await internals.fs.link(staged, currentPath);
 +		} catch (error) {
 +			/* Android sepolicy blocks link(2) (EACCES/EPERM); fall back to same-filesystem atomic rename */
-+			if (error?.code === "EACCES" || error?.code === "EPERM") await rename(tmp, finalPath);
-+			else throw error;
- 		} finally {
- 			/* v8 ignore next -- link failure is the TOCTOU/IO race guarded above; not reachable in test */
- 			if (!linked) await rm(tmp, { force: true });
++			if (!(error?.code === "EACCES" || error?.code === "EPERM")) throw error;
++			await rename(staged, currentPath);
++		}
+@@ -3340,1 +3346,7 @@
+-			await link(tmp, finalPath);
++			try {
++				await link(tmp, finalPath);
++			} catch (error) {
++				/* Android sepolicy blocks link(2) (EACCES/EPERM); fall back to same-filesystem atomic rename */
++				if (!(error?.code === "EACCES" || error?.code === "EPERM")) throw error;
++				await rename(tmp, finalPath);
++			}

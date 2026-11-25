@@ -1,11 +1,11 @@
 --- a/lib/index.js
 +++ b/lib/index.js
-@@ -565,7 +565,14 @@
--                await linkFile(tempPath, absolutePath);
-+                try {
-+                    await linkFile(tempPath, absolutePath);
-+                } catch (error) {
-+                    /* termux-noreplace-fallback */
-+                    if (!(error instanceof Error && "code" in error && error.code === "EACCES")) throw error;
-+                    await rename(tempPath, absolutePath);
-+                }
+@@ -568,1 +568,7 @@
+-			await linkFile(tempPath, absolutePath);
++			try {
++				await linkFile(tempPath, absolutePath);
++			} catch (error) {
++				/* termux-noreplace-fallback */
++				if (!(error instanceof Error && "code" in error && error.code === "EACCES")) throw error;
++				await rename(tempPath, absolutePath);
++			}
