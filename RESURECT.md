@@ -178,3 +178,7 @@ cd ~/dsh-builder && grep -n -iE '\[OK\]|\[SKIP\]|\[WARN\]|error|failed' ~/run<id
 ---
 
 **Начни с §4 (факты) и §7 (как продолжить). Не гадай, диагностируй.**
+
+### 6.5 proot запрещён
+Никакого `proot`. Всё нативно в Termux. Патч `07-sandbox-local-proot-runner.patch` **отключён** (закомментирован в `apply_patches.sh`). Если `sandbox-local` падает при `web` без proot — либо отключить sandbox на Android, либо дать нативный путь (без proot). В upstream `proot` не идёт.
+

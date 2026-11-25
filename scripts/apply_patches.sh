@@ -43,7 +43,7 @@ apply_patch "$PATCHES_DIR/02-session-persistence-link-rename.patch"    "$PKGS/se
 apply_patch "$PATCHES_DIR/03-subprocess-local-android.patch"           "$PKGS/subprocess/subprocess-local"            || true
 apply_patch "$PATCHES_DIR/05-host-directory-picker-native-android.patch" "$PKGS/host/directory-picker-native"         || true
 apply_patch "$PATCHES_DIR/06-workspace-archive-skip-session-known-check.patch" "$PKGS/workspace/workspace"            || true
-apply_patch "$PATCHES_DIR/07-sandbox-local-proot-runner.patch"         "$PKGS/sandbox/sandbox-local"                  || true
+# apply_patch "$PATCHES_DIR/07-sandbox-local-proot-runner.patch"         "$PKGS/sandbox/sandbox-local"                  || true  # disabled: proot запрещён
 apply_patch "$PATCHES_DIR/08-dsh-tool-fs-search-android-rg.patch"      "$PKGS/fs/tool-fs-search"                      || true
 
 # Новые: hard-link fallback (аналог шагов 6/8 install.sh)
