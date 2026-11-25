@@ -47,9 +47,6 @@ jobs:
       run: |
         python3 builder/scripts/install_android_build_tools.py
 
-    - name: Apply Android patches
-      run: |
-        bash builder/scripts/apply_patches.sh
 
     - name: Build DSH
       run: |
@@ -57,6 +54,9 @@ jobs:
         pnpm run build:lib:client
         pnpm run build:web
         pnpm run build:native-system
+    - name: Apply Android patches
+      run: |
+        bash builder/scripts/apply_patches.sh
 
     - name: Patch FiberState for Android
       run: |
