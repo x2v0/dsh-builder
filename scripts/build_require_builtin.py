@@ -134,6 +134,20 @@ def patch_build_ts(build_ts):
     print(f"[+] build.ts patched ({changed} changes)")
 
 
+def verify_product(node_file, expected):
+    """Fail-closed: binary must carry `expected` product tag, not the other one."""
+    if not os.path.exists(node_file):
+        return False, "file missing"
+    r = subprocess.run(["strings", node_file], capture_output=True, text=True)
+    out = r.stdout
+    if expected == "require-builtin":
+        if "node-addon-internal-loader" in out or "internal-loader" in out:
+            return False, "contains internal-loader tag (wrong product)"
+        if "require-builtin" not in out:
+            return False, "missing require-builtin tag"
+    return True, "ok"
+
+
 def verify_arch(node_file):
     if not os.path.exists(node_file):
         return False, "file missing"
@@ -194,6 +208,7 @@ def main():
     env["CXXFLAGS"] = "--target=aarch64-linux-android30 -fPIC"
     env["NARB_TARGET_OS"]   = "android"
     env["NARB_TARGET_ARCH"] = "arm64"
+    env["NARB_PRODUCT"]     = "require-builtin"  # ← upstream: build.ts defaults to internal-loader otherwise
     print("[*] pnpm build:native:napi (NDK cross-compile)")
     if subprocess.run(["pnpm", "build:native:napi"],
                       cwd=clone, env=env).returncode != 0:
@@ -224,6 +239,11 @@ def main():
     if not ok:
         sys.exit("[-] built binary is not aarch64 — cross-compile did not apply")
 
+    okp, infop = verify_product(src, "require-builtin")
+    print(f"[product] {infop}")
+    if not okp:
+        sys.exit("[-] wrong product tag — need require-builtin, got internal-loader")
+
     # Copy to pnpm's installed slot (detected version, both ABI dirs)
     pkg_base = os.path.join(
         "node_modules", ".pnpm",
@@ -238,11 +258,15 @@ def main():
         dst = os.path.join(d, "require_builtin.node")
         shutil.copyfile(src, dst)
         ok2, info2 = verify_arch(dst)
-        flag = "[+]" if ok2 else "[!]"
+        okp2, infop2 = verify_product(dst, "require-builtin")
+        flag = "[+]" if (ok2 and okp2) else "[!]"
         print(f"{flag} -> {dst}")
         print(f"       {info2}")
+        print(f"       [product] {infop2}")
         if not ok2:
             sys.exit(f"[-] copied binary at {dst} is not aarch64")
+        if not okp2:
+            sys.exit(f"[-] copied binary at {dst} has wrong product tag")
 
     print(f"[+] done — version {ver}, aarch64")
 
