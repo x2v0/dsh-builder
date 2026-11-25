@@ -91,6 +91,18 @@ def strip_pm_pin(pkg_path):
         print(f"[+] removed packageManager pin ({removed})")
 
 
+def patch_pm_allow_builds(pkg_path):
+    """pnpm 10+ refuses build scripts of dependencies unless approved.
+    For trusted upstream in CI, allow all builds via package.json."""
+    with open(pkg_path, encoding="utf-8") as f:
+        data = json.load(f)
+    pnpm = data.setdefault("pnpm", {})
+    pnpm["dangerouslyAllowAllBuilds"] = True
+    with open(pkg_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    print("[+] package.json: pnpm.dangerouslyAllowAllBuilds = true")
+
+
 def patch_build_ts(build_ts):
     if not os.path.exists(build_ts):
         print("[!] scripts/build.ts not found")
@@ -148,16 +160,19 @@ def main():
     clone_at_commit(commit, clone)
 
     strip_pm_pin(os.path.join(clone, "package.json"))
+    patch_pm_allow_builds(os.path.join(clone, "package.json"))
     patch_build_ts(os.path.join(clone, "scripts", "build.ts"))
 
     # Install (host pnpm OK — clone runs on linux-x64 CI)
-    print("[*] pnpm install --frozen-lockfile")
+    print("[*] pnpm install --no-frozen-lockfile (allow-builds)")
+    print("[*] clone: patching pnpm.dangerouslyAllowAllBuilds")
     if subprocess.run(["pnpm", "install", "--no-frozen-lockfile"],
                       cwd=clone).returncode != 0:
         sys.exit("[-] pnpm install failed")
 
     # Cross-compile with NDK
     env = os.environ.copy()
+    env["npm_config_dangerously_allow_all_builds"] = "true"
     env["CC"]  = cc
     env["CXX"] = cxx
     env["AR"]  = os.path.join(tool_bin, "llvm-ar")
