@@ -1,5 +1,8 @@
 # RESURECT.zh.md — 从头恢复 dsh-builder
 
+**[🇷🇺 Русский](RESURECT.md) | [🇬🇧 English](RESURECT.en.md) | [🇨🇳 中文](RESURECT.zh.md)**
+
+
 > 如果对话/上下文丢失 — 阅读此文件并从您离开的地方继续。
 > 所有命令在 Termux (`~/`) 中，不在 `/tmp` 中（规则 #555）。
 

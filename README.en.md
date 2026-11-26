@@ -1,5 +1,8 @@
 # dsh-builder
 
+**[🇷🇺 Русский](README.md) | [🇬🇧 English](README.en.md) | [🇨🇳 中文](README.zh.md)**
+
+
 Build [DSH (DeepSeek Harness)](https://github.com/deepseek-ai/deepseek-harness)
 for **Android / Termux**, fully in **GitHub Actions**, without manual patches
 on the phone. The artifact is reproducible: download -> unpack -> run.

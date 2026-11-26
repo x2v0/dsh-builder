@@ -1,5 +1,8 @@
 # GitHub Actions 构建指南
 
+**[🇷🇺 Русский](GUIDE.md) | [🇬🇧 English](GUIDE.en.md) | [🇨🇳 中文](GUIDE.zh.md)**
+
+
 本文档说明我们的构建流水线如何工作，如何运行它，
 如何监控进度，以及如何验证完成的构建产物。
 

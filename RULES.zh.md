@@ -1,5 +1,8 @@
 # 项目规则
 
+**[🇷🇺 Русский](RULES.md) | [🇬🇧 English](RULES.en.md) | [🇨🇳 中文](RULES.zh.md)**
+
+
 ## #0 — Python heredoc
 所有补丁通过 `python3 - << 'EOF'`。不要使用 `sed`、`awk`、`perl` 修改文件。
 

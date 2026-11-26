@@ -1,5 +1,8 @@
 # RESURECT.md — возрождение dsh-builder с нуля
 
+**[🇷🇺 Русский](RESURECT.md) | [🇬🇧 English](RESURECT.en.md) | [🇨🇳 中文](RESURECT.zh.md)**
+
+
 > Если диалог/контекст потерян — прочитай этот файл и продолжи с того места.
 > Все команды в Termux (`~/`), не в `/tmp` (RULE #555).
 

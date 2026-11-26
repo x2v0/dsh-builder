@@ -1,5 +1,8 @@
 # Project Rules
 
+**[🇷🇺 Русский](RULES.md) | [🇬🇧 English](RULES.en.md) | [🇨🇳 中文](RULES.zh.md)**
+
+
 ## #0 — Python heredoc
 All patches via `python3 - << 'EOF'`. Do not use `sed`, `awk`, `perl` to modify files.
 

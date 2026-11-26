@@ -1,5 +1,8 @@
 # Правила проекта dsh-builder
 
+**[🇷🇺 Русский](RULES.md) | [🇬🇧 English](RULES.en.md) | [🇨🇳 中文](RULES.zh.md)**
+
+
 ## #0 — Python heredoc
 Все патчи через `python3 - << 'EOF'`. Не использовать `sed`, `awk`, `perl` для изменения файлов.
 

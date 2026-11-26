@@ -1,5 +1,8 @@
 # Project Goals
 
+**[🇷🇺 Русский](GOALS.md) | [🇬🇧 English](GOALS.en.md) | [🇨🇳 中文](GOALS.zh.md)**
+
+
 ## 1. Main Goal
 Run DSH (DeepSeek Harness) on Android **fully from GitHub Actions**, without manual patches
 on the phone. The artifact is reproducible: download -> unpack -> run.

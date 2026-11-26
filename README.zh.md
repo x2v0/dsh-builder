@@ -1,5 +1,8 @@
 # dsh-builder
 
+**[🇷🇺 Русский](README.md) | [🇬🇧 English](README.en.md) | [🇨🇳 中文](README.zh.md)**
+
+
 在 **Android / Termux** 上构建 [DSH (DeepSeek Harness)](https://github.com/deepseek-ai/deepseek-harness)，
 完全在 **GitHub Actions** 中完成，无需在手机上手动打补丁。
 构建产物可复现：下载 -> 解压 -> 运行。

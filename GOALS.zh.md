@@ -1,5 +1,8 @@
 # 项目目标
 
+**[🇷🇺 Русский](GOALS.md) | [🇬🇧 English](GOALS.en.md) | [🇨🇳 中文](GOALS.zh.md)**
+
+
 ## 1. 主要目标
 在 Android 上**完全从 GitHub Actions** 运行 DSH (DeepSeek Harness)，无需在手机上
 手动打补丁。构建产物可复现：下载 -> 解包 -> 运行。

@@ -1,5 +1,8 @@
 # GitHub Actions Build Guide
 
+**[🇷🇺 Русский](GUIDE.md) | [🇬🇧 English](GUIDE.en.md) | [🇨🇳 中文](GUIDE.zh.md)**
+
+
 This document explains how our build pipeline works, how to run it,
 how to monitor progress, and how to verify the finished artifact.
 

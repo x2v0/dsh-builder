@@ -1,5 +1,8 @@
 # Цели проекта dsh-builder
 
+**[🇷🇺 Русский](GOALS.md) | [🇬🇧 English](GOALS.en.md) | [🇨🇳 中文](GOALS.zh.md)**
+
+
 ## 1. Главная цель
 Запустить DSH (DeepSeek Harness) на Android **полностью из GitHub Actions**, без ручных патчей на телефоне. Артефакт воспроизводим: скачал → распаковал → запустил.
 
