@@ -45,7 +45,7 @@ DSH `0.2.3-alpha.2` (`@deepseek-ai/dsh-root`), платформа android-arm64
 | Метрика | Значение |
 |---|---|
 | Размер tar.gz | 735 MB |
-| Размер распакованного | 2.7 GB |
+| Размер распакованного | 4.3 GB |
 | из них `node_modules` | 2.3 GB |
 | `packages/` | 354 MB |
 | `apps/` | 47 MB |
@@ -60,26 +60,6 @@ DSH `0.2.3-alpha.2` (`@deepseek-ai/dsh-root`), платформа android-arm64
 | Workspace-пакетов | 397 в 57 группах |
 | Apps | `cli`, `desktop`, `desktop-host`, `desktop-publisher`, `plugin-market-generator`, `web` |
 
-### Нативные `.node` модули
-
-| Модуль | Arch | Статус |
-|---|---|---|
-| `system.node` | ARM aarch64 (Android 30, NDK r27d), `bionic/` path | ✅ |
-| `require_builtin` | ARM aarch64 (Android 30, NDK r27d), product `require-builtin` | ✅ |
-| `node-pty` | ARM aarch64 (`linux-arm64`, не android) | ⚠️ TBD |
-| `koffi` | x86-64 (`linux-x64`) | ❌ нет android-сборки |
-| `esbuild` | ARM aarch64 (4/4: 0.21.5, 0.25.12, 0.28.1, 0.28.2) | ✅ |
-| `rolldown` | ARM aarch64 (`binding-android-arm64`, 2 версии) | ✅ |
-
-**`require_builtin`:** прогон `45704335477` — ✅ `ARM aarch64, Android 30, NDK r27d`,
-product `require-builtin` (было `internal-loader`). Фикс — `NARB_PRODUCT=require-builtin`
-в `build_require_builtin.py` + fail-closed `verify_product()` (`strings | grep`).
-Продукт `internal-loader` собирался по дефолту `build.ts` upstream.
-
-**`esbuild`:** `install_android_build_tools.py` переписан (коммит `f5c149f`) —
-теперь ставит `@esbuild/android-arm64@<ver>` в `node_modules` каждой
-из 4 версий esbuild в `.pnpm` (0.21.5, 0.25.12, 0.28.1, 0.28.2).
-До фикса `pnpm` резолвил под хост (`linux-x64`), `web` падал на старте.
 
 ## Структура репозитория
 
@@ -127,58 +107,8 @@ dsh-builder/
 | 15 | Package Artifact | `dsh-android-arm64.tar.gz` |
 | 16 | Upload Artifact | `gh run download <id>` |
 
-**Ключ:** шаг 8 (`Apply Android patches`) идёт **после** шага 7 (`Build DSH`),
-иначе сборка затирает `lib/`. Патчим `lib/index.js`, не `src/*.ts`
-(`tsx` грузит `exports` -> `lib/`).
-
-## Статус патчей
-
-| Патч | Пакет | Статус |
-|---|---|---|
-| 02 session-persistence | `rename(tmp, finalPath)` | ✅ в артефакте |
-| 05 directory-picker-native | native Android | ✅ |
-| 09 attachment-local | `link()` -> `rename()` fallback | ⚠️ в работе (anchor drift) |
-| 10 fs-local | `link()` -> `rename()` fallback | ✅ в артефакте |
-| 01 terminal-bash | android shell | ⏭ `[SKIP]` (устаревший анкор) |
-| 03 subprocess-local | android | ⏭ `[SKIP]` |
-| 04 open-in-app | opener | ⏭ `[SKIP]` (переехал) |
-| 06 workspace-archive | skip session-known | ⏭ `[SKIP]` |
-| 07 sandbox-local proot | **отключён** (proot запрещён) | ⏭ |
-| 08 tool-fs-search | android rg | ⏭ `[SKIP]` |
-
-Известные проблемы — [RESURECT.md](RESURECT.md) §6.
-
-## Цели ([GOALS.md](GOALS.md))
-
-1. **Всё в CI** — артефакт собирается в GitHub Actions, без ручных правок на телефоне.
-2. **Всё нативное** — `system.node`, `require_builtin.node`, `koffi`, `node-pty`, `esbuild` — под android-arm64.
-3. **YAML чистый** — логика в `scripts/*.py`, не в heredoc'ах.
-4. **DSH — everything is plugin** — минимум изменений ядра, предпочитаем плагины.
-5. **Никаких prebuilt в репо** — только `scripts/` и `patches/`.
-6. **Гибкость** — патчи по анкорам, скрипты идемпотентные, без хардкода путей.
-7. **Upstream** — патчи чистые, минимальные, пригодные для PR в upstream.
-
-## `patches` vs `scripts`
-
-- **`patches/*.patch`** — идут в upstream. `git apply`, минимальные, с
-  объяснением. Пример: `koffi-statx.patch` (bionic без `statx()` до API 30),
-  `require-builtin-android.patch` (`platform.cc` анкоры).
-- **`scripts/*.py`** — локальная сборка под Android, в upstream не идут.
-  Пример: `FiberState.ACTIVE -> 2` (workaround — `const enum` стирается в TS).
-
-## Правила ([RULES.md](RULES.md))
-
-Коротко: `cd` первой строкой (#1), без regex в патчах (#2), диагностировать
-а не гадать (#3), не ломать работающее (#4), один шаг — один вывод (#5),
-всё в `~/` не в `/tmp` (#555), текстовые файлы — python построчно (#12).
-
 ## Документы
 
 - [GOALS.md](GOALS.md) — 7 целей проекта.
 - [RULES.md](RULES.md) — правила правок (#0–#555).
 - [RESURECT.md](RESURECT.md) — состояние, как продолжить с нуля.
-
-## Лицензия
-
-Патчи и скрипты — под лицензией DSH (upstream).
-См. `deepseek-ai/deepseek-harness`.
