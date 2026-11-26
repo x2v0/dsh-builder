@@ -43,3 +43,7 @@ YAML **чистый**: логика в `scripts/*.py`, а не в heredoc'ах. 
 
 ### Что НЕ идёт в upstream
 - `FiberState.ACTIVE → 2` — это **локальный workaround** (TypeScript `const enum` стирается при компиляции; `profile-boot.ts` ожидает runtime-значение). В upstream это надо решать иначе (например, `export const FiberState = {...} as const`). Пока — в `scripts/`.
+
+
+---
+**Статус на 26.11.2026:** Все цели достигнуты. Артефакт `45725287927` собирается полностью в GitHub Actions, запускается на Android/Termux без ручных правок. `web` стартует, `turn` доходит до DeepSeek API.

@@ -99,34 +99,20 @@ node --import tsx/esm apps/cli/src/bin.ts web
 
 ## 5. Текущее состояние
 
-Артефакт собирается. Прогон **45682861933** (commit `1bb2448`) — первый, где install в клоне
-`dsh-node-addon-require-builtin` проходит (`--ignore-scripts`), впервые дошли до
-`pnpm build:native:napi`.
+**DSH полностью функционален на Android/Termux.** Артефакт `45725287927` — самодостаточен:
+скачал → распаковал → запустил → работает. Все нативные модули и path-фиксы собираются в CI.
 
-### Что твёрдо работает (артефакт 45650323936, проверено `file`)
+### Что твёрдо работает (артефакт 45725287927)
 
-- `system.node` — ARM aarch64, Android 30, NDK r27d ✅
-- `esbuild` — **4/4** android-arm64 (0.21.5, 0.25.12, 0.28.1, 0.28.2), `ARM aarch64` ✅
+- `system.node` — ARM aarch64, Android 30, NDK r27d, `flock.js` смотрит в `bin/bionic/` ✅
+- `esbuild` — 4/4 android-arm64 (0.21.5, 0.25.12, 0.28.1, 0.28.2) ✅
 - `@rolldown/binding-android-arm64` — 2 ноды (1.1.1, 1.2.7) ✅
-- патчи 02 (`session-persistence`), 05, 10 (`fs-local`) — в артефакте ✅
-- `web` больше не падает на esbuild / rolldown
-
-### Что осталось (единственный блокер `web`)
-
-- `require_builtin.node` — собран **x86-64**, лежит в `...-android-arm64/`, лоадер не грузит.
-  Плюс дрейф версии: файлы в `0.1.9`, `pnpm` поставил `0.1.10` → `Cannot find module`.
-  См. §6.1.
-
-### Ожидание от прогона 45682861933
-
-```
-[*] pnpm install --no-frozen-lockfile --ignore-scripts
-[*] pnpm build:native:napi (NDK cross-compile)
-[arch] ... ARM aarch64
-[+] done — version 0.1.10, aarch64
-```
-
-Если `[+] done` — скачать артефакт, `file` оба `.node`, **запустить `web`**.
+- `require_builtin.node` — ARM aarch64, Android 30, product `require-builtin` ✅
+- Патчи 02, 05, 10 — в артефакте ✅
+- `session-persistence-jsonl` — `rename` добавлен в импорт (`patch_session_persistence.py`) ✅
+- `flock.js` — путь к `system.node` исправлен для Android (`patch_flock_path_android.py`) ✅
+- **`web`** — стартует, UI открывается (127.0.0.1), ключ валиден (загружено 2 модели) ✅
+- **`turn`** — доходит до API DeepSeek (ответ или `QUOTA` без баланса) ✅
 
 ## 6. Известные проблемы
 
@@ -244,9 +230,9 @@ cd ~/dsh-builder && grep -n -iE '\[OK\]|\[SKIP\]|\[WARN\]|error|failed' ~/run<id
 **Локальный workaround (телефон):** `cp bin/bionic/system.node bin/system.node`.
 После этого `flock` грузится, turn идёт дальше.
 
-**CI-фикс:** `patch_flock_path_android.py` — `if (platform === 'android') { filename = join('bionic', filename); }`
+**CI-фикс:** `scripts/patch_flock_path_android.py` — `if (platform === 'android') { filename = join('bionic', filename); }`
 перед `if (platform === 'linux')` в `flock.js`, маркер `/* termux-bionic-system-node */`.
-Вызов после `Apply Android patches` (как `patch_flock_c.py`).
+Вызов в `build-dsh.yml` после `Patch flock.c`. Прогон `45725287927`: маркер в артефакте (стр. 17 `flock.js`).
 
 ### 6.7 `rename is not defined` (патч 02 без импорта)
 
@@ -258,8 +244,8 @@ cd ~/dsh-builder && grep -n -iE '\[OK\]|\[SKIP\]|\[WARN\]|error|failed' ~/run<id
 
 **Локальный фикс:** `readFile, readdir, realpath, rename,` в импорте `node:fs/promises`.
 
-**CI-фикс:** `patch_session_persistence.py` — добавление `rename` в импорт + вставка fallback
-`link → rename` по anchor, маркер `/* termux-link-fallback */`. После `Apply Android patches`.
+**CI-фикс:** `scripts/patch_session_persistence.py` — добавление `rename` в импорт `node:fs/promises`.
+Вызов в `build-dsh.yml` после `Patch flock.js path`. Прогон `45725287927`: `[+] line 4: rename added`.
 
 ## 11. Следующий шаг
 

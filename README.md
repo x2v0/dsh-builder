@@ -29,7 +29,7 @@ node --import tsx/esm apps/cli/src/bin.ts web
 | Патч 09 (attachment) | ⏳ anchor drift |
 | `system.node` path | ✅ локальный фикс (`bin/bionic/` → `bin/`); CI-патч (§6.6) в работе |
 | `rename is not defined` | ⏳ патч 02 добавил `rename()` без импорта — фикс в работе (§6.7) |
-| `web` на телефоне | ✅ стартует, UI открывается (127.0.0.1); turn доходит до выполнения |
+| `web` на телефоне | ✅ стартует, UI открывается, ключ валиден (модели загружаются) |
 
 Подробно — [RESURECT.md](RESURECT.md) §5, §6.1, §11.
 
