@@ -1,5 +1,8 @@
 # dsh-builder
 
+> 📖 **Читать подробный разбор на моём блоге:** [DeepSeek Harness на Android: от 4 часов ада до 4 минут в облаке](https://x2v0.github.io/blog/#post-20)
+
+
 **[🇷🇺 Русский](README.md) | [🇬🇧 English](README.en.md) | [🇨🇳 中文](README.zh.md)**
 
 
