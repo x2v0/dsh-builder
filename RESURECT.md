@@ -289,6 +289,15 @@ tail -40 ~/launch5.log
 4. PR-4: `koffi` `statx` bionic (`koffi-statx.patch`).
 5. PR-5: `require_builtin` Android (`require-builtin-android.patch`).
 
+**Статус (2026-11-26):**
+- PR-3 (`flock.ts` bionic path) — **готов**, ветка `x2v0/deepseek-harness:android-fixes`,
+  коммит `471f6158`, патч сохранён в `patches/upstream-flock-bionic.patch`.
+  Отправка в `deepseek-ai/deepseek-harness` блокирована (PR из форков отключён / org policy).
+  При возобновлении — `git push fork android-fixes && gh pr create` или веб-UI.
+- PR-1 (`fs-local`), PR-2 (`session-persistence`), PR-5 (`attachment`) — патчи в `patches/`,
+  готовы к оформлению по тому же шаблону.
+- PR-4 (`require_builtin`) — отдельный репо `dsh-node-addon-require-builtin`, ждёт.
+
 ### 11.4 Открытые вопросы (не блокеры `web`)
 
 - `koffi`/`node-pty` — linux-x64/linux-arm64 prebuilt. Проверить при загрузке; если падают — NDK из src или отключить.

@@ -1,0 +1,15 @@
+diff --git a/native/system/packages/entry/src/flock.ts b/native/system/packages/entry/src/flock.ts
+index fcbf8a9e..231821e4 100644
+--- a/native/system/packages/entry/src/flock.ts
++++ b/native/system/packages/entry/src/flock.ts
+@@ -20,7 +20,9 @@ function loadBinding(): FlockBinding {
+   }
+ 
+   let filename = 'system.node'
+-  if (platform === 'linux') {
++  if (platform === 'android') {
++      filename = join('bionic', filename)
++  } else if (platform === 'linux') {
+     // Node's report types omit the libc field supplied by Linux reports.
+     const report = process.report.getReport() as { header: { glibcVersionRuntime?: string } }
+     filename = join(report.header.glibcVersionRuntime ? 'glibc' : 'musl', filename)
