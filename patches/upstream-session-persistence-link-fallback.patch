@@ -1,0 +1,35 @@
+diff --git a/packages/session/session-persistence-jsonl/src/index.ts b/packages/session/session-persistence-jsonl/src/index.ts
+index 30863c3e..f792be2c 100644
+--- a/packages/session/session-persistence-jsonl/src/index.ts
++++ b/packages/session/session-persistence-jsonl/src/index.ts
+@@ -14,7 +14,7 @@ import {
+   sessionFormatCatalog,
+ } from '@deepseek-ai/dsh-session-format-catalog'
+ import { readdirSync, type Dirent } from 'node:fs'
+-import { open, mkdir, readdir, realpath, link, rm, stat, truncate } from 'node:fs/promises'
++import { open, mkdir, readdir, realpath, link, rename, rm, stat, truncate } from 'node:fs/promises'
+ import { dirname, join, resolve } from 'node:path'
+ import { performance } from 'node:perf_hooks'
+ import { scheduler } from 'node:timers/promises'
+@@ -1417,7 +1417,20 @@ export class JsonlSessionPersistence extends SessionPersistence {
+     // concurrently cannot clobber each other. rename() would silently overwrite.
+     let linked = false
+     try {
+-      await link(tmp, finalPath)
++      /* termux-link-fallback: bionic link(2) EACCES/EPERM/ENOSYS; emulate EEXIST via lstat */
++      try {
++        await link(tmp, finalPath)
++      } catch (error: unknown) {
++        const code = (error as NodeJS.ErrnoException)?.code
++        if (process.platform !== 'android' ||
++            (code !== 'EACCES' && code !== 'EPERM' && code !== 'ENOSYS')) throw error
++        // Android: emulate link's EEXIST (no silent overwrite), then rename.
++        if (await stat(finalPath).catch(() => undefined)) {
++          const eexist = Object.assign(new Error('EEXIST: file already exists'), { code: 'EEXIST', path: finalPath, syscall: 'link' })
++          throw eexist
++        }
++        await rename(tmp, finalPath)
++      }
+       linked = true
+     } finally {
+       // Remove an unpublished temp on failure. After publication, defer cleanup

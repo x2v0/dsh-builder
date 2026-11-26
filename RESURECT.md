@@ -297,7 +297,9 @@ tail -40 ~/launch5.log
 - PR-1 (`fs-local`) — **готов**, ветка `x2v0/deepseek-harness:android-fs-link-rename`,
   патч `patches/upstream-fs-link-rename.patch` (`+13 −1` в `fsio.ts`: `linkOrRenameOnBionic`).
   Upstream PR заблокирован (owner disabled PRs).
-- PR-2 (`session-persistence`), PR-5 (`attachment`) — патчи в `patches/`, готовы к оформлению.
+- PR-2 (`session-persistence-jsonl`) — **готов**, ветка `x2v0/deepseek-harness:android-session-persistence`,
+  коммит `09ea4e3e`, патч `patches/upstream-session-persistence-link-fallback.patch` (`+15 −2`, `rename` + `EEXIST`-эмуляция).
+- PR-5 (`attachment`) — патч в `patches/`, готов к оформлению.
 - PR-4 (`require_builtin`) — отдельный репо `dsh-node-addon-require-builtin`, ждёт.
 
 ### 11.4 Открытые вопросы (не блокеры `web`)
