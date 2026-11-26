@@ -8,6 +8,27 @@
 > скрипты сборки (`scripts/`). Исходники DSH чекаутятся в CI из
 > `deepseek-ai/deepseek-harness`.
 
+## 📖 Подробная инструкция
+
+Если вы впервые видите этот проект или хотите понять, как устроен пайплайн
+(что такое GitHub Actions, как править YAML, как запускать и проверять сборку),
+читайте **[GUIDE.md](GUIDE.md)**.
+
+Краткая шпаргалка:
+*   `gh workflow run build-dsh.yml` — запустить сборку.
+*   `gh run watch` — следить за прогрессом.
+*   `gh run download <ID>` — скачать готовый артефакт.
+
+---
+
+Сборка [DSH (DeepSeek Harness)](https://github.com/deepseek-ai/deepseek-harness)
+под **Android / Termux**, полностью в **GitHub Actions**, без ручных патчей
+на телефоне. Артефакт воспроизводим: скачал -> распаковал -> запустил.
+
+> Это **не форк DSH**. Репозиторий содержит только патчи (`patches/`) и
+> скрипты сборки (`scripts/`). Исходники DSH чекаутятся в CI из
+> `deepseek-ai/deepseek-harness`.
+
 ## Быстрый старт
 
 ```bash
