@@ -1,0 +1,59 @@
+diff --git a/packages/attachment/attachment-local/src/store.ts b/packages/attachment/attachment-local/src/store.ts
+index 5e935f6b..5db31abb 100644
+--- a/packages/attachment/attachment-local/src/store.ts
++++ b/packages/attachment/attachment-local/src/store.ts
+@@ -2,7 +2,7 @@
+ 
+ import { createHash, randomUUID } from 'node:crypto'
+ import { constants, createReadStream } from 'node:fs'
+-import { chmod, link, mkdir, open, readFile, unlink } from 'node:fs/promises'
++import { chmod, copyFile, link, mkdir, open, readFile, rename, unlink } from 'node:fs/promises'
+ import { dirname, join, parse, resolve } from 'node:path'
+ import { AttachmentError } from '@deepseek-ai/dsh-attachment'
+ import type { AttachmentId } from '@deepseek-ai/dsh-attachment/types'
+@@ -279,7 +279,15 @@ export async function publishImmutableAlias(
+     const boundary = await ensureDurableHome(dirname(dirname(resolve(root))))
+     await ensureDurableDirectory(parent, boundary)
+     try {
+-      await link(source, target)
++      /* termux-link-fallback: bionic link(2); copyFile for immutable source */
++      try {
++        await link(source, target)
++      } catch (error) {
++        const code = (error as NodeJS.ErrnoException)?.code
++        if (process.platform !== 'android' ||
++            (code !== 'EACCES' && code !== 'EPERM' && code !== 'ENOSYS')) throw error
++        await copyFile(source, target)
++      }
+     } catch (error) {
+       /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable link race. */
+       if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
+@@ -355,7 +363,17 @@ async function publishStagedObject(
+   try {
+     await ensureDurableDirectory(parent, staged.boundary)
+     try {
+-      await link(staged.path, target)
++      let stagedLinked = true
++      /* termux-link-fallback: bionic link(2); rename moves staged into place */
++      try {
++        await link(staged.path, target)
++      } catch (error) {
++        const code = (error as NodeJS.ErrnoException)?.code
++        if (process.platform !== 'android' ||
++            (code !== 'EACCES' && code !== 'EPERM' && code !== 'ENOSYS')) throw error
++        await rename(staged.path, target)
++        stagedLinked = false
++      }
+     } catch (error) {
+       /* v8 ignore next -- Private same-filesystem directories make EEXIST the only recoverable link race. */
+       if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
+@@ -365,7 +383,8 @@ async function publishStagedObject(
+     }
+     // Windows shares the read-only attribute across hard links and refuses to
+     // unlink either name once it is set, so discard the staging name first.
+-    await unlink(staged.path)
++    /* termux-link-fallback: skip unlink if rename already moved staged */
++    if (stagedLinked) await unlink(staged.path)
+     // The target remains the sole link for a new object; this also restores
+     // read-only mode when the deduplication path observes an existing object.
+     await chmod(target, 0o400)
