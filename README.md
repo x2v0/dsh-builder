@@ -38,6 +38,19 @@ export DEEPSEEK_API_KEY="sk-..."
 node --import tsx/esm apps/cli/src/bin.ts web
 ```
 
+### Что такое `workflow.yaml`?
+
+Это файл `.github/workflows/build-dsh.yml`. Он говорит GitHub Actions:
+*   **Когда** запускаться (`workflow_dispatch` — вручную, `push` — при коммите).
+*   **Что делать** (шаги: Checkout, Install, Build, Patch, Package).
+*   **Куда** положить результат (артефакт `dsh-android-arm64.tar.gz`).
+
+### Что такое `git push`?
+
+`git push` отправляет ваши локальные коммиты на GitHub. После этого
+GitHub Actions может автоматически запустить сборку (если в YAML есть `on: push`).
+Если автоматического запуска нет — используйте `gh workflow run build-dsh.yml`.
+
 ## Текущий статус
 
 **Артефакт `45725287927` — полностью самодостаточен.** Скачал → распаковал → запустил → работает.

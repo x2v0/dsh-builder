@@ -125,3 +125,45 @@ node --import tsx/esm apps/cli/src/bin.ts web
 *   [GOALS.md](GOALS.md) — цели проекта.
 *   [RULES.md](RULES.md) — правила правок.
 *   [RESURECT.md](RESURECT.md) — как продолжить с нуля.
+
+## 6. Примеры из реальной работы
+
+Ниже — реальные команды, которые мы использовали при сборке DSH.
+Их можно копировать и адаптировать под свои нужды.
+
+### 6.1. Полный цикл: правка, коммит, пуш, запуск, мониторинг
+
+```bash
+cd ~/dsh-builder && \
+  rm -f README.md.bak4 && \
+  git add .github/workflows/build-dsh.yml scripts/patch_flock_path_android.py scripts/patch_session_persistence.py && \
+  git status --short && \
+  git commit -m "ci: wire patch_flock_path_android + patch_session_persistence into build-dsh.yml" && \
+  git push
+sleep 5
+cd ~/dsh-builder && for i in 1 2 3 4 5; do
+  if gh workflow run build-dsh.yml; then echo "[OK] dispatched (try $i)"; break; fi
+  echo "[retry $i] HTTP 500, sleep 15"; sleep 15
+done
+sleep 15
+cd ~/dsh-builder && gh run list --limit 1 --json databaseId,status,conclusion
+```
+
+### 6.2. Запуск собранного артефакта с ключом из файла
+
+```bash
+cd ~ && umask 077 && printf '%s' 'sk-НОВЫЙ_КЛЮЧ' > ~/.deepseek_key && chmod 600 ~/.deepseek_key
+cd ~/dsh-final9/dsh-test9/dist-artifact
+export DSH_HOME="$HOME/.dsh-sessions"
+export DEEPSEEK_API_KEY="$(cat ~/.deepseek_key)"
+timeout 120 node --import tsx/esm apps/cli/src/bin.ts web 2>&1 | tee ~/launch9.log
+```
+
+### 6.3. Проверка, что скрипты попали в коммит
+
+```bash
+cd ~/dsh-builder && git ls-files scripts/patch_flock_path_android.py scripts/patch_session_persistence.py
+```
+
+Если команда ничего не вывела — файлы не добавлены в git, и CI их не увидит.
+
