@@ -19,19 +19,23 @@ node --import tsx/esm apps/cli/src/bin.ts web
 
 ## Текущий статус
 
+**Артефакт `45725287927` — полностью самодостаточен.** Скачал → распаковал → запустил → работает.
+Никаких ручных `cp`/`patch` не требуется.
+
 | Шаг | Статус |
 |---|---|
-| `system.node` (NDK r27d) | ✅ ARM aarch64 |
+| `system.node` (NDK r27d, `bin/bionic/`) | ✅ ARM aarch64, Android 30 |
 | `esbuild` (4 версии) | ✅ ARM aarch64 |
 | `@rolldown/binding-android-arm64` (2 версии) | ✅ ARM aarch64 |
-| `require_builtin.node` | ✅ ARM aarch64 (Android 30, NDK r27d), product `require-builtin` (прогон `45704335477`) |
+| `require_builtin.node` | ✅ ARM aarch64, product `require-builtin` |
 | Патчи 02 / 05 / 10 | ✅ в артефакте |
-| Патч 09 (attachment) | ⏳ anchor drift |
-| `system.node` path | ✅ локальный фикс (`bin/bionic/` → `bin/`); CI-патч (§6.6) в работе |
-| `rename is not defined` | ⏳ патч 02 добавил `rename()` без импорта — фикс в работе (§6.7) |
-| `web` на телефоне | ✅ стартует, UI открывается, ключ валиден (модели загружаются) |
+| Патч 09 (attachment) | ⚠️ anchor drift (не блокер для `web`) |
+| `flock.js` bionic path | ✅ `patch_flock_path_android.py` |
+| `session-persistence` rename | ✅ `patch_session_persistence.py` |
+| **`web`** | ✅ стартует, UI открывается, ключ валиден (2 модели) |
+| **`turn` (LLM)** | ✅ доходит до API (`QUOTA` — только без баланса) |
 
-Подробно — [RESURECT.md](RESURECT.md) §5, §6.1, §11.
+Подробно — [RESURECT.md](RESURECT.md) §5, §6.1, §6.6, §6.7, §11.
 
 ## Артефакт
 
@@ -93,6 +97,8 @@ dsh-builder/
 │   ├── install_android_build_tools.py # @esbuild/@rolldown android-arm64
 │   ├── patch_flock_ts.py             # flock.ts: platform !== 'android'
 │   ├── patch_flock_c.py              # flock() -> fcntl()
+│   ├── patch_flock_path_android.py   # flock.js: android -> bin/bionic/system.node
+│   ├── patch_session_persistence.py  # rename в импорт node:fs/promises
 │   └── patch_fiberstate.py           # FiberState.ACTIVE -> 2
 ├── GOALS.md
 ├── RULES.md
@@ -100,7 +106,7 @@ dsh-builder/
 └── README.md
 ```
 
-## Пайплайн `build-dsh.yml` (14 шагов)
+## Пайплайн `build-dsh.yml` (16 шагов)
 
 | # | Шаг | Что делает |
 |---|---|---|
@@ -114,10 +120,12 @@ dsh-builder/
 | 8 | Apply Android patches | `apply_patches.sh` — **после** `build:*` |
 | 9 | Patch FiberState | `patch_fiberstate.py` |
 | 10 | Patch flock.c | `patch_flock_c.py` (`flock` -> `fcntl`) |
-| 11 | Build system.node | NDK r27d |
-| 12 | Build require_builtin.node | arm64 (фикс в работе) |
-| 13 | Package Artifact | `dsh-android-arm64.tar.gz` |
-| 14 | Upload Artifact | `gh run download <id>` |
+| 11 | Patch flock.js path | `patch_flock_path_android.py` (android -> `bin/bionic/`) |
+| 12 | Patch session-persistence | `patch_session_persistence.py` (`rename` в импорт) |
+| 13 | Build system.node | NDK r27d -> ARM aarch64 |
+| 14 | Build require_builtin.node | NDK cross-compile, `NARB_PRODUCT=require-builtin` |
+| 15 | Package Artifact | `dsh-android-arm64.tar.gz` |
+| 16 | Upload Artifact | `gh run download <id>` |
 
 **Ключ:** шаг 8 (`Apply Android patches`) идёт **после** шага 7 (`Build DSH`),
 иначе сборка затирает `lib/`. Патчим `lib/index.js`, не `src/*.ts`
