@@ -8,6 +8,9 @@
 > скрипты сборки (`scripts/`). Исходники DSH чекаутятся в CI из
 > `deepseek-ai/deepseek-harness`.
 
+**[🇷🇺 Русский](README.md) | [🇬🇧 English](README.en.md) | [🇨🇳 中文](README.zh.md)**
+
+
 ## 📖 Подробная инструкция
 
 Если вы впервые видите этот проект или хотите понять, как устроен пайплайн
@@ -28,6 +31,9 @@
 > Это **не форк DSH**. Репозиторий содержит только патчи (`patches/`) и
 > скрипты сборки (`scripts/`). Исходники DSH чекаутятся в CI из
 > `deepseek-ai/deepseek-harness`.
+
+**[🇷🇺 Русский](README.md) | [🇬🇧 English](README.en.md) | [🇨🇳 中文](README.zh.md)**
+
 
 ## Быстрый старт
 
