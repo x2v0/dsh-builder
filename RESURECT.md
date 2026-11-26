@@ -294,8 +294,10 @@ tail -40 ~/launch5.log
   коммит `471f6158`, патч сохранён в `patches/upstream-flock-bionic.patch`.
   Отправка в `deepseek-ai/deepseek-harness` блокирована (PR из форков отключён / org policy).
   При возобновлении — `git push fork android-fixes && gh pr create` или веб-UI.
-- PR-1 (`fs-local`), PR-2 (`session-persistence`), PR-5 (`attachment`) — патчи в `patches/`,
-  готовы к оформлению по тому же шаблону.
+- PR-1 (`fs-local`) — **готов**, ветка `x2v0/deepseek-harness:android-fs-link-rename`,
+  патч `patches/upstream-fs-link-rename.patch` (`+13 −1` в `fsio.ts`: `linkOrRenameOnBionic`).
+  Upstream PR заблокирован (owner disabled PRs).
+- PR-2 (`session-persistence`), PR-5 (`attachment`) — патчи в `patches/`, готовы к оформлению.
 - PR-4 (`require_builtin`) — отдельный репо `dsh-node-addon-require-builtin`, ждёт.
 
 ### 11.4 Открытые вопросы (не блокеры `web`)
