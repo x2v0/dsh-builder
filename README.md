@@ -57,6 +57,14 @@ node --import tsx/esm apps/cli/src/bin.ts web
 GitHub Actions может автоматически запустить сборку (если в YAML есть `on: push`).
 Если автоматического запуска нет — используйте `gh workflow run build-dsh.yml`.
 
+## 📸 Скриншоты
+
+### Интерфейс DSH в браузере
+![DSH Web Interface](docs/screenshots/screenshot-web.jpg)
+
+### Запуск DSH в Termux
+![DSH Termux Startup](docs/screenshots/screenshot-termux.jpg)
+
 ## Текущий статус
 
 **Артефакт `45725287927` — полностью самодостаточен.** Скачал → распаковал → запустил → работает.

@@ -35,6 +35,14 @@
 可以自动启动构建（如果 YAML 中有 `on: push`）。
 如果没有自动启动 — 请使用 `gh workflow run build-dsh.yml`。
 
+## 📸 截图
+
+### DSH 网页界面
+![DSH Web Interface](docs/screenshots/screenshot-web.jpg)
+
+### 在 Termux 中启动 DSH
+![DSH Termux Startup](docs/screenshots/screenshot-termux.jpg)
+
 ## 当前状态
 
 **构建产物 `45725287927` 完全自包含。** 下载 -> 解压 -> 运行 -> 可用。

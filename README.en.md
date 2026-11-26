@@ -36,6 +36,14 @@ This is `.github/workflows/build-dsh.yml`. It tells GitHub Actions:
 can automatically start a build (if `on: push` is in the YAML).
 If there is no auto-start — use `gh workflow run build-dsh.yml`.
 
+## 📸 Screenshots
+
+### DSH Web Interface
+![DSH Web Interface](docs/screenshots/screenshot-web.jpg)
+
+### DSH Startup in Termux
+![DSH Termux Startup](docs/screenshots/screenshot-termux.jpg)
+
 ## Current Status
 
 **Artifact `45725287927` is fully self-contained.** Download -> unpack -> run -> works.
